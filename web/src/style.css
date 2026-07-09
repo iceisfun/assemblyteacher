@@ -369,6 +369,10 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
 .prose pre.md-code code { background: none; color: var(--fg); padding: 0; }
 .prose a { color: var(--accent); }
 .prose blockquote { border-left: 3px solid var(--line); margin: 0; padding-left: 12px; color: var(--fg-dim); }
+.prose .md-table { border-collapse: collapse; margin: 14px 0; display: block; overflow-x: auto; max-width: 100%; }
+.prose .md-table th, .prose .md-table td { border: 1px solid var(--line); padding: 5px 12px; text-align: left; white-space: nowrap; }
+.prose .md-table thead th { background: var(--bg-2); font-weight: 600; }
+.prose .md-table tbody tr:nth-child(even) { background: var(--bg-1); }
 
 .exercises { margin-top: 24px; }
 .exercise { border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 12px; background: var(--bg-1); }
