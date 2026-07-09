@@ -379,6 +379,8 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
 .ex-choice { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .exercise .ce { height: 160px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 10px; }
 .ex-verdict { margin-top: 10px; font-family: var(--mono); font-size: 13px; white-space: pre-wrap; }
+.ex-bytes { font-family: var(--mono); font-size: 15px; letter-spacing: 1px; color: var(--amber); background: var(--bg-1); border: 1px solid var(--line); border-radius: 6px; padding: 10px; margin-bottom: 10px; word-break: break-all; }
+.ex-text-answer { width: 100%; margin-bottom: 10px; }
 
 /* ===================================================================== */
 /* inspector                                                             */
@@ -398,7 +400,8 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
 .chip-pass { color: var(--ok); border-color: rgba(90,212,166,0.4); background: rgba(90,212,166,0.1); }
 .chip-fail { color: var(--bad); border-color: rgba(255,122,122,0.4); background: rgba(255,122,122,0.1); }
 .chip-warn { color: var(--warn); border-color: rgba(242,201,76,0.4); background: rgba(242,201,76,0.1); }
-.chip-unknown { color: var(--fg-faint); }
+.chip-unknown, .chip-na { color: var(--fg-faint); border-style: dashed; }
+.fwd { color: var(--accent-2); }
 
 .tbl-scroll { overflow-x: auto; }
 .tbl { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 12px; }

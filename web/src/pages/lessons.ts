@@ -129,17 +129,18 @@ function renderExercise(lessonId: string, ex: Exercise, n: number): HTMLElement 
   };
 
   if (ex.kind === "quiz" && ex.choices) {
+    // The check endpoint wants the choice INDEX as a decimal string ("0","1").
     const form = document.createElement("form");
     form.className = "ex-quiz";
     const name = `q-${ex.id}`;
-    for (const choice of ex.choices) {
+    ex.choices.forEach((choice, i) => {
       const label = document.createElement("label");
       label.className = "ex-choice";
       label.innerHTML =
-        `<input type="radio" name="${name}" value="${choice.index}" /> ` +
-        escapeHtml(choice.text);
+        `<input type="radio" name="${name}" value="${i}" /> ` +
+        escapeHtml(choice);
       form.appendChild(label);
-    }
+    });
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "btn";
@@ -156,6 +157,28 @@ function renderExercise(lessonId: string, ex: Exercise, n: number): HTMLElement 
     });
     form.appendChild(btn);
     card.appendChild(form);
+  } else if (ex.kind === "disassemble") {
+    // Show the raw bytes; the student types the instruction. We deliberately do
+    // NOT explain them — that would give the answer away.
+    const bytes = document.createElement("div");
+    bytes.className = "ex-bytes";
+    bytes.textContent = ex.hex ?? "";
+    card.appendChild(bytes);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "ex-text-answer";
+    input.placeholder = "e.g. mov rax, qword [rsp+0x8]";
+    input.setAttribute("aria-label", "Your disassembly");
+    card.appendChild(input);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn";
+    btn.textContent = "Check";
+    btn.addEventListener("click", () => void submit(input.value));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void submit(input.value);
+    });
+    card.appendChild(btn);
   } else {
     // assemble / emulate: embedded editor + check
     const editor = new CodeEditor();

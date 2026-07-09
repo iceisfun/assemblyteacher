@@ -41,6 +41,7 @@ web/
 │   ├── api.ts                # typed client for every endpoint in docs/api.md
 │   ├── style.css             # the single stylesheet
 │   ├── core/                 # pure, browser-free, unit-tested logic
+│   │   ├── word.ts           # Word (0x-hex wire string) <-> bigint helpers
 │   │   ├── hex.ts            # byte/address/ASCII formatting, hex parse
 │   │   ├── endian.ts         # u8..u64 / i8..i64 / f32 / f64 interpretation
 │   │   ├── search.ts         # hex/ASCII needle search (all/next/prev)
@@ -150,7 +151,21 @@ ed.addEventListener("assembled", (e) => console.log(e.detail.hex));
 
 ## Notes on the API contract
 
-The typed client in `src/api.ts` follows `docs/api.md` exactly. A few shapes in
-the doc are underspecified; see the handoff notes for where the client made an
-assumption (memory chunks for `/api/emu/step`, the mitigations panel and the
-lesson/exercise shapes are the main ones).
+The typed client in `src/api.ts` follows the server (`crates/server/src/routes/*`)
+exactly. Two things are worth knowing when reading it:
+
+- **Machine words are hex strings.** Every register value, address, and
+  immediate crosses the wire as a `0x`-prefixed lowercase string, never a JSON
+  number — a JSON number is an IEEE double and cannot represent every 64-bit bit
+  pattern. `src/core/word.ts` models this as `type Word = string` with
+  `parseWord`/`formatWord`; everything downstream works in `bigint`. The one
+  exception is `/api/binfmt/inspect`, whose addresses stay JSON **numbers**
+  because every address in a real executable is below 2^53.
+- **snake_case vs camelCase.** The emu/asm endpoints are camelCase, but the
+  `/api/binfmt/inspect` image and the `/api/lessons/{id}` detail response are
+  snake_case (`image_base`, `file_offset`, `estimated_minutes`, `stack_canary`),
+  matching their Rust structs. The lesson **index** is camelCase. The interfaces
+  in `api.ts` reflect this field-for-field.
+
+Component consumers pass `Word` strings straight through: `register-view`'s
+`setState` and `memory-viewer`'s `base` accept a `Word`, `bigint`, or `number`.

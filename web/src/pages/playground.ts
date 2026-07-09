@@ -12,15 +12,31 @@ import {
   type AssembleResponse,
   type AssembledLine,
   type DisassembledInsn,
+  type Stop,
 } from "../api.ts";
 import { CodeEditor } from "../components/code-editor.ts";
 import { InsnExplain } from "../components/insn-explain.ts";
 import { RegisterView } from "../components/register-view.ts";
 import { StackView } from "../components/stack-view.ts";
-import { MemoryViewer } from "../components/memory-viewer.ts";
+import { MemoryViewer, type Region as MvRegion } from "../components/memory-viewer.ts";
 import { reconstruct, type ReconstructedRun } from "../core/emu-state.ts";
 import { SAMPLE_SOURCE } from "../core/samples.ts";
 import { parseHex } from "../core/hex.ts";
+import { parseWord, type Word } from "../core/word.ts";
+
+/** Format a wire word as a padded hex address for a listing. */
+function fmtAddr(w: Word): string {
+  return "0x" + parseWord(w).toString(16).padStart(8, "0");
+}
+
+/** A translucent tint for a region, keyed on its rwx permissions. */
+function permColor(perms: string): string {
+  const x = perms.includes("x");
+  const w = perms.includes("w");
+  if (x) return "rgba(124, 196, 255, 0.16)"; // code
+  if (w) return "rgba(242, 201, 76, 0.14)"; // writable data / stack
+  return "rgba(90, 212, 166, 0.12)"; // read-only data
+}
 
 export function renderPlayground(root: HTMLElement): void {
   root.innerHTML = "";
@@ -89,7 +105,7 @@ export function renderPlayground(root: HTMLElement): void {
       const row = document.createElement("button");
       row.className = "listing-row";
       row.innerHTML =
-        `<span class="li-addr">0x${ln.address.toString(16).padStart(8, "0")}</span>` +
+        `<span class="li-addr">${fmtAddr(ln.address)}</span>` +
         `<span class="li-hex">${ln.hex}</span>` +
         `<span class="li-text">${escapeHtml(ln.text)}</span>`;
       row.addEventListener("click", () => {
@@ -128,7 +144,7 @@ export function renderPlayground(root: HTMLElement): void {
         const row = document.createElement("button");
         row.className = "listing-row";
         row.innerHTML =
-          `<span class="li-addr">0x${insn.ip.toString(16).padStart(8, "0")}</span>` +
+          `<span class="li-addr">${fmtAddr(insn.ip)}</span>` +
           `<span class="li-hex">${insn.hex}</span>` +
           `<span class="li-text">${escapeHtml(insn.text)}</span>` +
           `<span class="li-desc">${escapeHtml(insn.description)}</span>`;
@@ -174,6 +190,7 @@ export function renderPlayground(root: HTMLElement): void {
   const memoryView = new MemoryViewer();
   let current: ReconstructedRun | null = null;
   let codeLen = 0;
+  let runBase = 0n;
 
   tracePanel.innerHTML = `
     <div class="trace-controls">
@@ -182,6 +199,7 @@ export function renderPlayground(root: HTMLElement): void {
              aria-label="Execution step" disabled />
       <span class="trace-pos"></span>
     </div>
+    <div class="trace-truncated notice notice-warn" hidden></div>
     <div class="trace-insn"></div>
     <div class="trace-stdout" hidden></div>
     <div class="trace-views">
@@ -199,25 +217,35 @@ export function renderPlayground(root: HTMLElement): void {
   const stopEl = tracePanel.querySelector<HTMLElement>(".trace-stop")!;
   const insnEl = tracePanel.querySelector<HTMLElement>(".trace-insn")!;
   const stdoutEl = tracePanel.querySelector<HTMLElement>(".trace-stdout")!;
+  const truncEl = tracePanel.querySelector<HTMLElement>(".trace-truncated")!;
 
   function applySnapshot(index: number): void {
     if (!current) return;
     const snap = current.snapshots[index]!;
     registerView.setState(
       snap.registers,
-      Number(snap.ip),
+      snap.ripNow,
       snap.flags,
       snap.writtenRegs,
     );
     const mem = current.memoryAt(index);
     memoryView.base = current.memBase;
+    // colour each mapped region by its permissions
+    memoryView.regions = current.windowRegions.map(
+      (r): MvRegion => ({
+        start: r.start,
+        end: r.end,
+        color: permColor(r.perms),
+        label: `${r.name} ${r.perms}`,
+      }),
+    );
     memoryView.setBytes(mem);
     stackView.setModel({
       bytes: mem,
       base: current.memBase,
-      rsp: BigInt(Math.trunc(snap.registers["rsp"] ?? 0)),
-      rbp: BigInt(Math.trunc(snap.registers["rbp"] ?? 0)),
-      codeRange: { start: 0n, end: BigInt(codeLen) },
+      rsp: snap.registers["rsp"] ?? 0n,
+      rbp: snap.registers["rbp"] ?? 0n,
+      codeRange: { start: runBase, end: runBase + BigInt(codeLen) },
     });
     insnEl.textContent =
       index === 0
@@ -232,8 +260,9 @@ export function renderPlayground(root: HTMLElement): void {
     const source = editor.value;
     statusEl.textContent = "running…";
     try {
-      const res = await run({ source, maxSteps: 10000 });
+      const res = await run({ source, maxSteps: 100000 });
       codeLen = parseHex(lastAssembled?.hex ?? "")?.length ?? 0;
+      runBase = parseWord(res.base);
       current = reconstruct(res);
       const maxIdx = current.snapshots.length - 1;
       scrub.max = String(maxIdx);
@@ -241,9 +270,19 @@ export function renderPlayground(root: HTMLElement): void {
       scrub.disabled = false;
       stopEl.textContent = formatStop(res.stop);
       stopEl.className = "trace-stop " + (res.stop.kind === "fault" ? "bad" : "ok");
-      if (res.stdout) {
+      if (res.traceTruncated) {
+        truncEl.hidden = false;
+        truncEl.textContent =
+          `trace truncated to ${res.trace.length} steps (the run itself completed in ${res.steps})`;
+      } else {
+        truncEl.hidden = true;
+      }
+      const out = [res.stdout && "stdout: " + res.stdout, res.stderr && "stderr: " + res.stderr]
+        .filter(Boolean)
+        .join("\n");
+      if (out) {
         stdoutEl.hidden = false;
-        stdoutEl.textContent = "stdout: " + res.stdout;
+        stdoutEl.textContent = out;
       } else {
         stdoutEl.hidden = true;
       }
@@ -278,12 +317,7 @@ export function renderPlayground(root: HTMLElement): void {
   });
 }
 
-function formatStop(stop: {
-  kind: string;
-  code?: number;
-  reason?: string;
-  address?: number;
-}): string {
+function formatStop(stop: Stop): string {
   switch (stop.kind) {
     case "exited":
       return `exited (code ${stop.code ?? 0})`;
@@ -292,7 +326,7 @@ function formatStop(stop: {
     case "stepLimit":
       return "hit step limit";
     case "fault":
-      return `fault: ${stop.reason ?? "?"}${stop.address !== undefined ? " @ 0x" + stop.address.toString(16) : ""}`;
+      return `fault: ${stop.reason ?? "?"}${stop.address !== undefined ? " @ " + fmtAddr(stop.address) : ""}`;
     case "breakpoint":
       return "breakpoint";
     default:

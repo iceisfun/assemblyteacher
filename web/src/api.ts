@@ -1,31 +1,43 @@
-// Typed client for the Assembly Teacher REST API. Mirrors docs/api.md exactly.
-// Every response interface here corresponds to a documented JSON shape; do not
-// invent fields. The single request() helper turns the {error, line, kind}
-// error body into a typed ApiError.
+// Typed client for the Assembly Teacher REST API. Follows the server exactly
+// (crates/server/src/routes/*). The one cross-cutting rule: every *machine word*
+// — register value, address, immediate — is a `0x`-hex STRING on the wire (see
+// src/core/word.ts). Executable *file* addresses in /binfmt/inspect are the
+// deliberate exception and stay JSON numbers, because they are always < 2^53.
+
+import type { Word } from "./core/word.ts";
 
 // ---------------------------------------------------------------------------
-// Errors
+// Errors — body is { error, kind, line? }
 // ---------------------------------------------------------------------------
 
-/** The documented error body: `{ error, line?, kind? }`. */
+export type ErrorKind =
+  | "assemble"
+  | "decode"
+  | "hex"
+  | "binfmt"
+  | "request"
+  | "not_found"
+  | "too_large"
+  | string;
+
 export interface ApiErrorBody {
   error: string;
+  kind: ErrorKind;
   line?: number;
-  kind?: string;
 }
 
 /** Thrown by request() for any non-2xx response or transport failure. */
 export class ApiError extends Error {
   readonly status: number;
   readonly line?: number;
-  readonly kind?: string;
+  readonly kind?: ErrorKind;
 
-  constructor(message: string, status: number, line?: number, kind?: string) {
+  constructor(message: string, status: number, kind?: ErrorKind, line?: number) {
     super(message);
     this.name = "ApiError";
     this.status = status;
-    if (line !== undefined) this.line = line;
     if (kind !== undefined) this.kind = kind;
+    if (line !== undefined) this.line = line;
   }
 }
 
@@ -58,7 +70,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     if (isErrorBody(body)) {
-      throw new ApiError(body.error, res.status, body.line, body.kind);
+      throw new ApiError(body.error, res.status, body.kind, body.line);
     }
     throw new ApiError(
       text || `request to ${path} failed with ${res.status}`,
@@ -80,17 +92,28 @@ function postJson<T>(path: string, payload: unknown): Promise<T> {
 // Shared shapes
 // ---------------------------------------------------------------------------
 
+/** The seven emulated flags (note `df`, added by the server). */
 export interface Flags {
-  zf: boolean;
   cf: boolean;
-  sf: boolean;
-  of: boolean;
   pf: boolean;
   af: boolean;
+  zf: boolean;
+  sf: boolean;
+  of: boolean;
+  df: boolean;
 }
 
-/** Register file as a name->u64 map. u64 values may exceed Number precision. */
-export type Registers = Record<string, number>;
+/** Register file: name -> word. Values are `0x…` strings. */
+export type Registers = Record<string, Word>;
+
+/** One mapped memory region with its contents. `perms` is `"r-x"`-style. */
+export interface Region {
+  base: Word;
+  name: string;
+  perms: string;
+  hex: string;
+  truncated: boolean;
+}
 
 // ---------------------------------------------------------------------------
 // GET /api/health
@@ -111,20 +134,20 @@ export function health(): Promise<Health> {
 
 export interface AssembleRequest {
   source: string;
-  origin?: number;
+  origin?: Word | number;
 }
 
 export interface AssembledLine {
   line: number;
-  address: number;
+  address: Word;
   hex: string;
   text: string;
 }
 
 export interface AssembleResponse {
   hex: string;
-  origin: number;
-  labels: Record<string, number>;
+  origin: Word;
+  labels: Record<string, Word>;
   lines: AssembledLine[];
 }
 
@@ -138,17 +161,17 @@ export function assemble(req: AssembleRequest): Promise<AssembleResponse> {
 
 export interface DisassembleRequest {
   hex: string;
-  base?: number;
+  base?: Word | number;
 }
 
 export interface DisassembledInsn {
-  ip: number;
+  ip: Word;
   hex: string;
   text: string;
   description: string;
   length: number;
   mnemonic: string;
-  branchTarget: number | null;
+  branchTarget: Word | null;
   fallsThrough: boolean;
 }
 
@@ -189,34 +212,43 @@ export function explain(req: ExplainRequest): Promise<ExplainResponse> {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/emu/run
+// Trace / state (shared by run and step)
 // ---------------------------------------------------------------------------
-
-export interface RunRequest {
-  source?: string;
-  hex?: string;
-  maxSteps?: number;
-  stdin?: string;
-  base?: number;
-}
 
 export interface RegWrite {
   reg: string;
-  before: number;
-  after: number;
+  before: Word;
+  after: Word;
 }
 
 export interface MemWrite {
-  addr: number;
-  bytes: string;
+  addr: Word;
+  before: string; // hex bytes prior to the write
+  after: string; // hex bytes written
+}
+
+export interface MemRead {
+  addr: Word;
+  hex: string;
+}
+
+export interface Syscall {
+  number: Word;
+  name: string;
+  args: Word[];
+  result: Word;
 }
 
 export interface TraceEntry {
-  ip: number;
+  ip: Word;
   text: string;
+  hex: string; // the instruction's own bytes
   regWrites: RegWrite[];
   memWrites: MemWrite[];
+  memReads: MemRead[];
+  flagsBefore: Flags;
   flagsAfter: Flags;
+  syscall?: Syscall;
 }
 
 export type StopKind =
@@ -228,23 +260,40 @@ export type StopKind =
 
 export interface Stop {
   kind: StopKind;
-  code?: number;
-  reason?: string;
-  address?: number;
+  code?: number; // exited
+  reason?: string; // fault
+  address?: Word; // fault, breakpoint
 }
 
-export interface MachineState {
+/** Machine state. `memory` is present on /step; omitted from /run's `final`. */
+export interface State {
   registers: Registers;
-  rip: number;
+  rip: Word;
   flags: Flags;
+  memory?: Region[];
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/emu/run
+// ---------------------------------------------------------------------------
+
+export interface RunRequest {
+  source?: string;
+  hex?: string;
+  base?: Word | number;
+  maxSteps?: number;
 }
 
 export interface RunResponse {
   stop: Stop;
   steps: number;
   stdout: string;
-  final: MachineState;
+  stderr: string;
+  base: Word;
+  final: State;
   trace: TraceEntry[];
+  traceTruncated: boolean;
+  regions: Region[];
 }
 
 export function run(req: RunRequest): Promise<RunResponse> {
@@ -252,28 +301,23 @@ export function run(req: RunRequest): Promise<RunResponse> {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/emu/step
+// POST /api/emu/step — fully stateless and symmetric
 // ---------------------------------------------------------------------------
 
-/** A memory image chunk. `[address, hexBytes]` per docs' `memory: [...]`. */
-export interface MemoryChunk {
-  address: number;
-  bytes: string;
-}
-
-export interface StepState extends MachineState {
-  memory: MemoryChunk[];
+/** The state a /step request carries; `memory` is required here. */
+export interface StepState extends State {
+  memory: Region[];
 }
 
 export interface StepRequest {
-  hex: string;
-  base?: number;
   state: StepState;
 }
 
 export interface StepResponse {
-  trace: TraceEntry;
+  step?: TraceEntry; // absent when the CPU stopped instead of stepping
+  stop?: Stop; // present on halt/exit/breakpoint/fault
   state: StepState;
+  stdout: string;
 }
 
 export function step(req: StepRequest): Promise<StepResponse> {
@@ -281,76 +325,102 @@ export function step(req: StepRequest): Promise<StepResponse> {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/binfmt/inspect
+// POST /api/binfmt/inspect — addresses are JSON NUMBERS here (all < 2^53).
+// The image serialises in snake_case (no camelCase rename on these structs).
 // ---------------------------------------------------------------------------
+
+export type BinFormat = "elf" | "pe";
+
+/** Arch serialises as the raw enum name, e.g. "X86_64", or {Other: n}. */
+export type BinArch = string | { Other: number };
+
+/** rwx permission triad as an object (drives both sections and segments). */
+export interface SectionFlags {
+  alloc: boolean;
+  write: boolean;
+  execute: boolean;
+}
 
 export interface BinSection {
   name: string;
   address: number;
   size: number;
-  offset: number;
-  flags: string[];
+  file_offset: number;
+  file_size: number;
+  flags: SectionFlags;
 }
 
 export interface BinSegment {
-  type: string;
+  kind: string;
   vaddr: number;
+  filesz: number;
   memsz: number;
-  perms: string;
+  perms: SectionFlags;
+  offset: number;
 }
+
+/** kind/binding are lowercase strings, or {other: n} for unclassified values. */
+export type SymbolKind = string | { other: number };
+export type SymbolBinding = string | { other: number };
 
 export interface BinSymbol {
   name: string;
   address: number;
   size: number;
-  kind: string;
-  binding: string;
+  kind: SymbolKind;
+  binding: SymbolBinding;
+  section: string | null;
 }
 
 export interface BinImport {
   name: string;
-  library: string;
-  kind: string;
+  library: string | null;
+  kind: string; // "function" | "data" | "unknown"
+  ordinal: number | null;
+  iat_address: number | null;
 }
 
 export interface BinExport {
   name: string;
   address: number;
-  kind?: string;
+  ordinal: number | null;
+  /** "OTHERDLL.Symbol" when this export forwards elsewhere. */
+  forwarder: string | null;
 }
 
 export interface BinRelocation {
   offset: number;
   kind: string;
-  symbol: string;
+  symbol: string | null;
   addend: number;
 }
 
-/**
- * Mitigations panel. Not shown in the api.md example but described in the
- * Inspector requirements (NX/PIE/RELRO/canary/CFG/CET). Treated as optional so
- * a server that omits it still parses.
- */
+export type Relro = "none" | "partial" | "full";
+
 export interface BinMitigations {
-  nx?: boolean;
-  pie?: boolean;
-  relro?: "full" | "partial" | "none" | string;
-  canary?: boolean;
-  cfg?: boolean;
-  cet?: boolean;
+  nx: boolean;
+  pie: boolean;
+  relro: Relro | null; // null on PE (does not apply)
+  bind_now: boolean;
+  stack_canary: boolean;
+  aslr: boolean;
+  cfg: boolean;
+  cet: boolean;
 }
 
 export interface InspectResponse {
-  format: string;
-  arch: string;
+  format: BinFormat;
+  arch: BinArch;
   entry: number;
+  image_base: number;
+  is_pie: boolean;
   sections: BinSection[];
   segments: BinSegment[];
   symbols: BinSymbol[];
   imports: BinImport[];
   exports: BinExport[];
   relocations: BinRelocation[];
-  mitigations?: BinMitigations;
+  mitigations: BinMitigations;
 }
 
 /** Inspect via multipart upload of a File (the drag-and-drop path). */
@@ -369,7 +439,8 @@ export function inspectHex(hex: string): Promise<InspectResponse> {
 }
 
 // ---------------------------------------------------------------------------
-// Lessons
+// Lessons. NOTE: the index (LessonSummary) is camelCase; the lesson DETAIL
+// response is snake_case (estimated_minutes), matching the server structs.
 // ---------------------------------------------------------------------------
 
 export interface LessonSummary {
@@ -377,6 +448,8 @@ export interface LessonSummary {
   title: string;
   order: number;
   objectives: string[];
+  prerequisites: string[];
+  estimatedMinutes?: number;
   exerciseCount: number;
 }
 
@@ -394,37 +467,36 @@ export function lessons(): Promise<LessonIndex> {
   return request<LessonIndex>("/api/lessons");
 }
 
-export type ExerciseKind = "quiz" | "assemble" | "emulate";
-
-export interface QuizChoice {
-  index: number;
-  text: string;
-}
-
-export interface Exercise {
-  id: string;
-  kind: ExerciseKind;
-  prompt: string;
-  /** Present for quiz exercises. */
-  choices?: QuizChoice[];
-  /** Optional starter source for assemble/emulate exercises. */
-  starter?: string;
-}
+export type ExampleLanguage = "asm" | "c" | "rust" | "other";
 
 export interface LessonExample {
-  title?: string;
-  source?: string;
-  hex?: string;
-  description?: string;
+  name: string;
+  language: ExampleLanguage;
+  source: string;
+}
+
+export type ExerciseKind = "quiz" | "assemble" | "disassemble" | "emulate";
+
+/** Public exercise: the `kind` tag is flattened, plus one kind-specific field. */
+export interface Exercise {
+  id: string;
+  prompt: string;
+  hints: string[];
+  kind: ExerciseKind;
+  choices?: string[]; // quiz
+  starter?: string; // assemble, emulate
+  hex?: string; // disassemble (the bytes to read)
 }
 
 export interface Lesson {
   id: string;
   title: string;
   order: number;
+  part: number;
+  estimated_minutes?: number;
   objectives: string[];
-  /** Rendered markdown body of the lesson. */
-  body: string;
+  prerequisites: string[];
+  body: string; // markdown
   examples: LessonExample[];
   exercises: Exercise[];
 }
@@ -434,7 +506,7 @@ export function lesson(id: string): Promise<Lesson> {
 }
 
 export interface CheckRequest {
-  /** Source, hex, or the chosen index (as a string) depending on kind. */
+  /** Always a string: the choice index ("0","1",…) for quizzes, source else. */
   answer: string;
 }
 

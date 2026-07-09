@@ -3,7 +3,11 @@
 // written on the last step glow. Flags render as individual bits with tooltips.
 
 import { padHex } from "../core/hex.ts";
-import type { Flags, Registers } from "../api.ts";
+import { parseWord, type Word } from "../core/word.ts";
+import type { Flags } from "../api.ts";
+
+/** A register map whose values may be wire words, bigints, or numbers. */
+export type RegInput = Record<string, Word | bigint | number>;
 
 const GPR_ORDER = [
   "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp",
@@ -37,12 +41,8 @@ const FLAG_INFO: Array<[keyof Flags, string, string]> = [
   ["zf", "ZF", "Zero: the result was zero"],
   ["sf", "SF", "Sign: copy of the result's most-significant bit"],
   ["of", "OF", "Overflow: signed overflow occurred"],
+  ["df", "DF", "Direction: string ops step forward (0) or backward (1)"],
 ];
-
-function toBig(v: number): bigint {
-  // Register values are u64. JSON delivers them as numbers; convert defensively.
-  return BigInt(Math.trunc(v)) & 0xffff_ffff_ffff_ffffn;
-}
 
 // Masks for the four sub-register widths, in [64,32,16,8]-bit order.
 const SUB_MASKS = [
@@ -53,7 +53,7 @@ const SUB_MASKS = [
 ];
 
 export class RegisterView extends HTMLElement {
-  private _registers: Registers = {};
+  private _registers: RegInput = {};
   private _rip = 0n;
   private _flags: Flags | null = null;
   private _written = new Set<string>();
@@ -68,16 +68,24 @@ export class RegisterView extends HTMLElement {
     this.render();
   }
 
-  /** Set the full register map (name -> u64). `written` glows those names. */
-  setState(registers: Registers, rip: number, flags: Flags, written: string[] = []): void {
+  /**
+   * Set the full register map (name -> word). Values may be `0x…` wire words,
+   * bigints, or numbers. `written` names the registers to glow.
+   */
+  setState(
+    registers: RegInput,
+    rip: Word | bigint | number,
+    flags: Flags,
+    written: string[] = [],
+  ): void {
     this._registers = registers;
-    this._rip = toBig(rip);
+    this._rip = parseWord(rip);
     this._flags = flags;
     this._written = new Set(written.map((r) => r.toLowerCase()));
     this.render();
   }
 
-  set registers(r: Registers) {
+  set registers(r: RegInput) {
     this._registers = r;
     this.render();
   }
@@ -85,14 +93,14 @@ export class RegisterView extends HTMLElement {
     this._flags = f;
     this.render();
   }
-  set rip(v: number) {
-    this._rip = toBig(v);
+  set rip(v: Word | bigint | number) {
+    this._rip = parseWord(v);
     this.render();
   }
 
   private regValue(name: string): bigint {
     const v = this._registers[name];
-    return v === undefined ? 0n : toBig(v);
+    return v === undefined ? 0n : parseWord(v);
   }
 
   private render(): void {
@@ -171,13 +179,6 @@ export class RegisterView extends HTMLElement {
         bit.title = desc;
         flagsEl.appendChild(bit);
       }
-      // DF is not in the emulator flag set but is part of the teaching set;
-      // show it as informational when absent.
-      const df = document.createElement("span");
-      df.className = "rv-flag rv-flag-df";
-      df.textContent = "DF:?";
-      df.title = "Direction: controls whether string ops step forward (0) or back (1)";
-      flagsEl.appendChild(df);
       this.appendChild(flagsEl);
     }
   }
