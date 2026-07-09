@@ -1,0 +1,36 @@
+[package]
+name = "server"
+description = "The Assembly Teacher web server and REST API."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "asmteacher"
+path = "src/main.rs"
+
+[dependencies]
+asm-core.workspace = true
+asm-emu.workspace = true
+binfmt.workspace = true
+lesson.workspace = true
+serde = { workspace = true }
+serde_json.workspace = true
+thiserror.workspace = true
+axum = { version = "0.8", features = ["multipart"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+tower-http = { version = "0.6", features = ["fs", "trace", "cors", "limit"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive", "env"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
