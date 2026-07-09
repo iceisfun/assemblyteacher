@@ -1,0 +1,4 @@
+# The default 100-column width plus a preference for compact single-line blocks.
+# Chosen so that the instruction tables in asm-core stay readable as tables.
+max_width = 100
+use_small_heuristics = "Max"

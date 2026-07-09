@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/asm-core",
+    "crates/asm-emu",
+    "crates/binfmt",
+    "crates/lesson",
+    "crates/server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/iceisfun/asmteacher"
+authors = ["Assembly Teacher contributors"]
+
+[workspace.dependencies]
+asm-core = { path = "crates/asm-core" }
+asm-emu = { path = "crates/asm-emu" }
+binfmt = { path = "crates/binfmt" }
+lesson = { path = "crates/lesson" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"

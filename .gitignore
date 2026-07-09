@@ -1,0 +1,38 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node / frontend
+node_modules/
+/web/dist/
+/web/.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# Build and test scratch
+*.o
+*.obj
+*.exe
+*.bin
+!lessons/**/*.bin
+/tmp/
+.cache/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Coverage / profiling
+*.profraw
+*.profdata
+/coverage/
+perf.data*
+flamegraph.svg
+
+# Cargo.lock IS committed: this workspace ships binaries, and a reproducible
+# build environment (contrib/Dockerfile) is worth more than dependency drift.
