@@ -1,0 +1,17 @@
+[package]
+name = "asm-core"
+description = "x86_64 instruction model, decoder, encoder and assembler, written to be read."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["serde"]
+serde = ["dep:serde"]
+
+[dependencies]
+serde = { workspace = true, optional = true }
+thiserror.workspace = true
