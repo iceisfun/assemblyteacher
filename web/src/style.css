@@ -355,6 +355,28 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
 .ie-bg-1.ie-bitlabel b { color: var(--ok); }
 .ie-bg-2.ie-bitlabel b { color: var(--amber); }
 
+/* Field cards are filled with a bright hue, which the grey body text reads
+   poorly against. Keep the colours, but lift the text to white and wrap every
+   glyph in a crisp black outline plus a soft all-directions glow, so it stays
+   legible on any of the fills (and on the darker hover state too). Scoped to
+   the card body — the byte chips already use dark-on-bright and are left be. */
+.ie-card .ie-card-title,
+.ie-card .ie-expl,
+.ie-card .ie-bitlabel {
+  text-shadow:
+    0 0 2px rgba(0, 0, 0, 0.95), 0 0 4px rgba(0, 0, 0, 0.7),
+    1px 1px 0 rgba(0, 0, 0, 0.9), -1px -1px 0 rgba(0, 0, 0, 0.9),
+    1px -1px 0 rgba(0, 0, 0, 0.9), -1px 1px 0 rgba(0, 0, 0, 0.9),
+    1px 0 0 rgba(0, 0, 0, 0.9), -1px 0 0 rgba(0, 0, 0, 0.9),
+    0 1px 0 rgba(0, 0, 0, 0.9), 0 -1px 0 rgba(0, 0, 0, 0.9);
+}
+.ie-card .ie-fname,
+.ie-card .ie-expl,
+.ie-card .ie-fhex,
+.ie-card .ie-bitlabel,
+.ie-card .ie-bitlabel b { color: #fff; }
+.ie-card .ie-foff { color: rgba(255, 255, 255, 0.85); }
+
 /* ===================================================================== */
 /* lessons                                                               */
 /* ===================================================================== */
