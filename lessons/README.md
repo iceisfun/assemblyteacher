@@ -68,6 +68,7 @@ broken one.
 | IX. Reverse Engineering | Reading Compiled Code | recognising prologues, loops, `if`s, structs, signedness |
 | | Lab: Patch the Check | defeat a keycheck by flipping one branch |
 | | AOB Scanning | signatures and wildcards; opcode vs operand bytes; branch reach; alignment |
+| | Your Code vs the Compiler's | separating your logic from ABI, security and runtime scaffolding |
 | X. Debugging | How Debuggers Work | `int3`, the trap flag, hardware breakpoints and watchpoints |
 | | Stepping, Watchpoints and Inspection | step over vs into, backtraces, conditional breakpoints |
 | XI. Memory Structures | Arrays, Strings and Structs | base-plus-index arrays, string representations, field offsets and padding |
@@ -77,6 +78,7 @@ broken one.
 | XIV. Security | Exploit Mitigations | NX, canaries, ASLR, RELRO, CFG, CET as a cost-raising chain |
 | | Checking a Binary's Defenses | reading the mitigations off a binary with the Inspector |
 | | Stack Canaries and Security Cookies | compiler stack guards, Linux canaries, Windows `/GS`, and failure triage |
+| | Return-Oriented Programming | gadgets, clobbering, unaligned gadgets, and which mitigation breaks which step |
 | XV. Advanced Topics | Capstone: Inspect, Trace, Patch | tie inspection, tracing, ASLR, patching and mitigations into one workflow |
 
 The proposed full curriculum — fifteen parts through advanced reverse

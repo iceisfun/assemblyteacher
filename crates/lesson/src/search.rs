@@ -55,40 +55,64 @@ pub fn search(curriculum: &Curriculum, query: &str, limit: usize) -> Vec<SearchH
         let title = lesson.title.to_lowercase();
         let id = lesson.id.to_lowercase();
 
-        // Collect every field that matched, then keep the strongest.
+        // Score each field. A whole-word match is strong and scales with
+        // frequency; a mid-word substring is a weak fallback, and only for
+        // queries of 4+ characters — at three characters `rop` inside `drop` is
+        // noise, but at five `egist` inside `register` is a fair partial.
         let mut cands: Vec<(i32, &'static str)> = Vec::new();
 
         if title == q {
             cands.push((100, "title"));
-        } else if title.contains(&q) {
-            cands.push((78, "title"));
-        }
-        if id != q && id.replace('-', " ").contains(&q) {
-            cands.push((66, "id"));
-        }
-        if lesson.objectives.iter().any(|o| o.to_lowercase().contains(&q)) {
-            cands.push((56, "objective"));
+        } else if let Some(s) = phrase_score(&title, &q, 82, 60, 3) {
+            cands.push((s, "title"));
         }
 
-        // Headings weigh more than plain body text.
-        let (heading_hit, body_hit) = scan_body(&lesson.body, &q);
-        if heading_hit {
-            cands.push((48, "heading"));
-        } else if body_hit {
-            cands.push((32, "body"));
-        }
-
-        if lesson.exercises.iter().any(|e| e.prompt.to_lowercase().contains(&q)) {
-            cands.push((28, "exercise"));
-        }
-
-        // Multi-word queries: every word present somewhere, even if not adjacent.
-        if words.len() > 1 && cands.is_empty() {
-            let blob = format!("{title} {id} {}", lesson.objectives.join(" ").to_lowercase());
-            let blob = format!("{blob} {}", lesson.body.to_lowercase());
-            if words.iter().all(|w| blob.contains(w)) {
-                cands.push((24, "text"));
+        let id_spaced = id.replace('-', " ");
+        if id != q {
+            if let Some(s) = phrase_score(&id_spaced, &q, 66, 60, 3) {
+                cands.push((s, "id"));
             }
+        }
+
+        let objectives = lesson.objectives.join("\n").to_lowercase();
+        if let Some(s) = phrase_score(&objectives, &q, 58, 22, 4) {
+            cands.push((s, "objective"));
+        }
+
+        // Headings weigh more than body text; more mentions rank higher.
+        let mut head_hits = 0usize;
+        let mut body_hits = 0usize;
+        for line in lesson.body.lines() {
+            let trimmed = line.trim();
+            let n = word_hits(&trimmed.to_lowercase(), &q);
+            if n == 0 {
+                continue;
+            }
+            if trimmed.starts_with('#') {
+                head_hits += n;
+            } else {
+                body_hits += n;
+            }
+        }
+        if head_hits > 0 {
+            cands.push((50 + freq_bonus(head_hits), "heading"));
+        }
+        if body_hits > 0 {
+            cands.push((38 + freq_bonus(body_hits), "body"));
+        }
+        // Substring fallback in the body, only when nothing matched as a word.
+        if head_hits == 0 && body_hits == 0 && q.len() >= 4 && lesson.body.to_lowercase().contains(&q) {
+            cands.push((16, "body"));
+        }
+
+        let prompts = lesson
+            .exercises
+            .iter()
+            .map(|e| e.prompt.to_lowercase())
+            .collect::<Vec<_>>()
+            .join("\n");
+        if let Some(s) = phrase_score(&prompts, &q, 28, 12, 4) {
+            cands.push((s, "exercise"));
         }
 
         // Concept/alias boost.
@@ -98,13 +122,36 @@ pub fn search(curriculum: &Curriculum, query: &str, limit: usize) -> Vec<SearchH
             }
         }
 
-        if let Some((score, field)) = cands.into_iter().max_by_key(|(s, _)| *s) {
+        let mut best = cands.into_iter().max_by_key(|(s, _)| *s);
+
+        // Multi-word queries are OR, not AND: a lesson that matches *some* of the
+        // words still surfaces (ranked by how many), so "eax foo bar" still finds
+        // eax's lessons rather than returning nothing.
+        let mut focus: Option<String> = None;
+        if words.len() > 1 {
+            let hay = format!("{title}\n{objectives}\n{}", lesson.body.to_lowercase());
+            let covered: Vec<&&str> = words.iter().filter(|w| word_hits(&hay, w) > 0).collect();
+            if let Some(first) = covered.first() {
+                focus = Some((**first).to_string());
+                // Reward covering more distinct words, and mentioning them more
+                // often, so an eax-heavy lesson outranks a one-line mention.
+                let total: usize = covered.iter().map(|w| word_hits(&hay, w)).sum();
+                let cov = covered.len() as i32 * 6 + freq_bonus(total);
+                best = Some(match best {
+                    Some((s, f)) => (s + cov, f),
+                    None => (cov, "text"),
+                });
+            }
+        }
+
+        if let Some((score, field)) = best {
+            let term = focus.as_deref().filter(|_| field == "text").unwrap_or(&q);
             hits.push(SearchHit {
                 id: lesson.id.clone(),
                 title: lesson.title.clone(),
                 part: lesson.part,
                 field,
-                snippet: make_snippet(&lesson.body, &q),
+                snippet: make_snippet(&lesson.body, term),
                 score,
             });
         }
@@ -116,22 +163,45 @@ pub fn search(curriculum: &Curriculum, query: &str, limit: usize) -> Vec<SearchH
     hits
 }
 
-/// Does the query appear in a heading line and/or a body line?
-fn scan_body(body: &str, q: &str) -> (bool, bool) {
-    let mut heading = false;
-    let mut body_hit = false;
-    for line in body.lines() {
-        let trimmed = line.trim();
-        if !trimmed.to_lowercase().contains(q) {
-            continue;
-        }
-        if trimmed.starts_with('#') {
-            heading = true;
-        } else {
-            body_hit = true;
-        }
+/// Count how many times `q` starts a word in `text` (a lowercased haystack).
+/// "Starts a word" = the preceding byte is not alphanumeric, which lets `(ROP)`
+/// and `big-endian` match while `appropriate` and `Europe` do not. This is what
+/// keeps a short query from drowning in mid-word coincidences.
+fn word_hits(text: &str, q: &str) -> usize {
+    if q.is_empty() {
+        return 0;
     }
-    (heading, body_hit)
+    let bytes = text.as_bytes();
+    let mut count = 0;
+    let mut from = 0;
+    while let Some(rel) = text[from..].find(q) {
+        let at = from + rel;
+        if at == 0 || !bytes[at - 1].is_ascii_alphanumeric() {
+            count += 1;
+        }
+        from = at + q.len();
+    }
+    count
+}
+
+/// A diminishing bonus for repeated mentions: 1 hit adds nothing, many hits add
+/// up to +14, so a lesson that is *about* a term beats one that name-drops it.
+fn freq_bonus(hits: usize) -> i32 {
+    (hits.min(8) as i32 - 1).max(0) * 2
+}
+
+/// Score `q` against one field: a whole-word match earns `strong` (plus a
+/// frequency bonus); a mid-word substring earns the weaker `weak`, but only once
+/// the query is at least `min_sub` characters, below which substrings are noise.
+fn phrase_score(text: &str, q: &str, strong: i32, weak: i32, min_sub: usize) -> Option<i32> {
+    let w = word_hits(text, q);
+    if w > 0 {
+        Some(strong + freq_bonus(w))
+    } else if q.len() >= min_sub && text.contains(q) {
+        Some(weak)
+    } else {
+        None
+    }
 }
 
 /// A short context string: the nearest heading above the first matching line,
@@ -147,7 +217,7 @@ fn make_snippet(body: &str, q: &str) -> String {
         if trimmed.is_empty() {
             continue;
         }
-        if trimmed.to_lowercase().contains(q) {
+        if word_hits(&trimmed.to_lowercase(), q) > 0 {
             let line = window_around(&clean_markdown(trimmed), q, 130);
             return if heading.is_empty() { line } else { format!("{heading} — {line}") };
         }
@@ -225,6 +295,49 @@ mod tests {
         let c = corpus();
         let hits = search(&c, "endianness", 10);
         assert_eq!(hits.first().map(|h| h.id.as_str()), Some("endianness"));
+    }
+
+    #[test]
+    fn a_short_query_matches_whole_words_not_mid_word_coincidences() {
+        // "rop" must find the lesson that says ROP 13 times, and must NOT match
+        // "drop"/"appropriate"/"Europe" in unrelated lessons.
+        let c = corpus();
+        let hits = search(&c, "ROP", 8);
+        let ids: Vec<&str> = hits.iter().map(|h| h.id.as_str()).collect();
+        assert!(ids.contains(&"exploit-mitigations"), "ROP should find exploit-mitigations: {ids:?}");
+        assert!(
+            !ids.contains(&"calling-conventions"),
+            "the only `rop` in calling-conventions is `drop`; it must not match: {ids:?}"
+        );
+    }
+
+    #[test]
+    fn frequent_mentions_outrank_a_single_name_drop() {
+        let c = corpus();
+        let hits = search(&c, "gadget", 8);
+        // The ROP and mitigations lessons are about gadgets; a passing mention
+        // elsewhere must not outrank them.
+        let top = hits.first().map(|h| h.id.as_str());
+        assert!(matches!(top, Some("return-oriented-programming" | "exploit-mitigations")), "{top:?}");
+    }
+
+    #[test]
+    fn a_longer_query_matches_a_mid_word_substring_but_ranks_it_below_real_hits() {
+        let c = corpus();
+        // "egist" appears only inside "register" — a weak partial, but better
+        // than returning nothing.
+        let hits = search(&c, "egist", 8);
+        assert!(hits.iter().any(|h| h.id == "registers"), "egist should find registers: {hits:#?}");
+    }
+
+    #[test]
+    fn a_multi_word_query_is_or_not_and() {
+        let c = corpus();
+        // "eax foo bar" — only "eax" matches anything, but the query must still
+        // surface eax's lessons rather than returning nothing.
+        let hits = search(&c, "eax foo bar", 25);
+        assert!(!hits.is_empty(), "partial multi-word query should still return hits");
+        assert!(hits.iter().any(|h| h.id == "registers"));
     }
 
     #[test]

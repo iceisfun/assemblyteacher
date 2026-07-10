@@ -22,9 +22,29 @@ export interface Hit {
   href: string;
 }
 
+// Run a name-search over the whole query and, for a multi-word query, over each
+// word too, preserving order and dropping duplicates. This is what lets
+// "eax foo bar" still surface EAX: the whole phrase matches nothing, but the
+// "eax" token does. Single-word queries are unchanged.
+function unionByWord(query: string, fn: (q: string) => string[]): string[] {
+  const queries = [query, ...query.trim().split(/\s+/)];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const q of queries) {
+    if (!q) continue;
+    for (const name of fn(q)) {
+      if (!seen.has(name)) {
+        seen.add(name);
+        out.push(name);
+      }
+    }
+  }
+  return out;
+}
+
 /** Registers and instructions, resolved synchronously from the bundled catalogs. */
 export function searchEntities(query: string): { registers: Hit[]; instructions: Hit[] } {
-  const registers: Hit[] = searchRegs(query).map((name) => {
+  const registers: Hit[] = unionByWord(query, searchRegs).map((name) => {
     const info = lookupReg(name)!;
     return {
       kind: "register",
@@ -34,7 +54,7 @@ export function searchEntities(query: string): { registers: Hit[]; instructions:
     };
   });
 
-  const instructions: Hit[] = searchInsns(query).map((mnemonic) => {
+  const instructions: Hit[] = unionByWord(query, searchInsns).map((mnemonic) => {
     const entry = lookupInsnEntry(mnemonic);
     return {
       kind: "instruction",
