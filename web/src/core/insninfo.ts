@@ -543,7 +543,12 @@ const TABLE: Record<string, Entry> = {
     flags: "kernel-defined",
     flagEffects: {},
     examples: ["mov rax, 60", "mov rdi, 0", "syscall"],
-    notes: ["syscall clobbers rcx (return address) and r11 (flags) per the ABI."],
+    notes: [
+      "On any OS, syscall saves the return address into rcx and the flags into r11 before entering the kernel — so both are clobbered.",
+      "Windows x64 uses the same instruction but a different convention: the service number is in eax, and the first argument is in r10, then rdx, r8, r9, and the stack. The r10 quirk exists because syscall overwrites rcx (the normal first-argument register) with the return address, so ntdll's stubs run `mov r10, rcx` right before the syscall.",
+      "Windows syscall numbers are deliberately unstable — they change between OS builds and are undocumented — so user code is expected to call through ntdll (the Nt*/Zw* stubs) and the Win32 API, never to invoke syscall directly. Linux, by contrast, guarantees its call numbers as a stable ABI, which is why invoking syscall by hand is normal there.",
+      "This emulator models the Linux convention only.",
+    ],
     related: ["int", "int3", "ret"],
   },
   int3: {
