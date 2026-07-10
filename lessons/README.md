@@ -78,7 +78,7 @@ broken one.
 | XIV. Security | Exploit Mitigations | NX, canaries, ASLR, RELRO, CFG, CET as a cost-raising chain |
 | | Checking a Binary's Defenses | reading the mitigations off a binary with the Inspector |
 | | Stack Canaries and Security Cookies | compiler stack guards, Linux canaries, Windows `/GS`, and failure triage |
-| | Return-Oriented Programming | gadgets, clobbering, unaligned gadgets, and which mitigation breaks which step |
+| | Return-Oriented Programming (ROP) | gadgets, clobbering, unaligned gadgets, and which mitigation breaks which step |
 | XV. Advanced Topics | Capstone: Inspect, Trace, Patch | tie inspection, tracing, ASLR, patching and mitigations into one workflow |
 
 The proposed full curriculum — fifteen parts through advanced reverse

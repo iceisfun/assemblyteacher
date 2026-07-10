@@ -1,6 +1,6 @@
 +++
 id = "return-oriented-programming"
-title = "Return-Oriented Programming"
+title = "Return-Oriented Programming (ROP)"
 order = 4
 estimated_minutes = 45
 objectives = [
