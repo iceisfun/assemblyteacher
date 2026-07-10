@@ -44,7 +44,12 @@ pub async fn assemble(Json(req): Json<AssembleRequest>) -> ApiResult<Json<Assemb
         return Err(ApiError::too_large("source is larger than 256 KiB"));
     }
 
-    let out = asm_core::asm::assemble_at(&req.source, req.origin.unwrap_or_default().0)?;
+    // Assembling a large source runs a branch-relaxation loop; keep it off the
+    // async runtime so it cannot stall a worker.
+    let origin = req.origin.unwrap_or_default().0;
+    let out = tokio::task::spawn_blocking(move || asm_core::asm::assemble_at(&req.source, origin))
+        .await
+        .map_err(|_| ApiError::internal("the assemble task panicked"))??;
 
     Ok(Json(AssembleResponse {
         hex: to_hex(&out.bytes),
@@ -124,17 +129,24 @@ pub async fn disassemble(
     let bytes = decode_hex(&req.hex, "hex")?;
     let base = req.base.unwrap_or_default().0;
 
-    let mut instructions = Vec::new();
-    let mut error = None;
-    for result in Decoder::new(&bytes, base) {
-        match result {
-            Ok(insn) => instructions.push(insn.into()),
-            Err(e) => {
-                error = Some(e.to_string());
-                break;
+    // A megabyte of single-byte instructions is a million decode-and-format
+    // iterations; sweep it on a blocking thread.
+    let (instructions, error) = tokio::task::spawn_blocking(move || {
+        let mut instructions = Vec::new();
+        let mut error = None;
+        for result in Decoder::new(&bytes, base) {
+            match result {
+                Ok(insn) => instructions.push(InsnDto::from(insn)),
+                Err(e) => {
+                    error = Some(e.to_string());
+                    break;
+                }
             }
         }
-    }
+        (instructions, error)
+    })
+    .await
+    .map_err(|_| ApiError::internal("the disassemble task panicked"))?;
 
     Ok(Json(DisassembleResponse { instructions, error }))
 }

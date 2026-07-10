@@ -13,14 +13,27 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// Hard ceilings. A browser tab should not be able to make the server spin.
-const MAX_STEPS: u64 = 2_000_000;
-const DEFAULT_STEPS: u64 = 100_000;
-/// Traces are the bulk of a response; a run of a million steps must not try to
-/// serialise a million entries.
-const MAX_TRACE: usize = 20_000;
-/// Per-region cap when shipping memory back to the viewer.
+/// Hard ceilings, tuned for a public deployment. A browser tab — or a bored
+/// attacker — should not be able to make the server spin or exhaust its memory.
+///
+/// The step cap bounds CPU time: each interpreted step is O(1), so half a
+/// million of them is tens of milliseconds, and the emulator runs on a blocking
+/// thread (see `run`) so even that does not stall the async runtime. A teaching
+/// program never approaches this; the recursive-factorial exercise is a few
+/// thousand steps.
+const MAX_STEPS: u64 = 500_000;
+const DEFAULT_STEPS: u64 = 50_000;
+/// The trace is the bulk of a response and is bounded independently of the step
+/// count: a program may run for `MAX_STEPS` but we never buffer or serialise
+/// more than this many effect records. The scrubber in the UI shows exactly
+/// this many.
+const MAX_TRACE: usize = 10_000;
+/// Per-region cap when shipping memory back to the viewer, and when accepting a
+/// region on `/step`.
 const MAX_REGION_BYTES: usize = 256 * 1024;
+/// How many regions a `/step` request may describe. The request body limit
+/// already bounds this indirectly; the explicit cap is defence in depth.
+const MAX_REGIONS: usize = 64;
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -298,12 +311,22 @@ pub async fn run(Json(req): Json<RunRequest>) -> ApiResult<Json<RunResponse>> {
 
     let max_steps = req.max_steps.unwrap_or(DEFAULT_STEPS).min(MAX_STEPS);
 
-    let mut cpu = Cpu::with_code(&code, base);
-    let outcome = cpu.run(max_steps);
+    // Interpretation is synchronous CPU work. Run it on a blocking thread so a
+    // long program never stalls an async worker that other requests need, and
+    // bound the trace so memory stays proportional to what we return, not to
+    // how many steps the program ran.
+    let (outcome, cpu) = tokio::task::spawn_blocking(move || {
+        let mut cpu = Cpu::with_code(&code, base);
+        let outcome = cpu.run_bounded(max_steps, MAX_TRACE);
+        (outcome, cpu)
+    })
+    .await
+    .map_err(|_| ApiError::internal("the emulation task panicked"))?;
 
-    let trace_truncated = outcome.trace.len() > MAX_TRACE;
-    let trace: Vec<TraceEntry> =
-        outcome.trace.into_iter().take(MAX_TRACE).map(TraceEntry::from).collect();
+    // The program ran further than we recorded when its step count outran the
+    // trace cap.
+    let trace_truncated = outcome.steps > outcome.trace.len() as u64;
+    let trace: Vec<TraceEntry> = outcome.trace.into_iter().map(TraceEntry::from).collect();
 
     Ok(Json(RunResponse {
         stop: outcome.stop.into(),
@@ -357,6 +380,11 @@ fn parse_perms(s: &str) -> Perms {
 fn cpu_from_state(state: &StateDto) -> ApiResult<Cpu> {
     if state.memory.is_empty() {
         return Err(ApiError::bad("request", "`state.memory` must describe at least one region"));
+    }
+    if state.memory.len() > MAX_REGIONS {
+        return Err(ApiError::too_large(format!(
+            "a state may describe at most {MAX_REGIONS} memory regions"
+        )));
     }
 
     let mut mem = Memory::new();

@@ -114,8 +114,28 @@ impl Cpu {
     }
 
     /// Run until the program stops, faults, or `max_steps` instructions have
-    /// executed. The trace holds at most `max_steps` effect records.
+    /// executed. The full trace is recorded (one entry per instruction), so the
+    /// returned `Run` can hold up to `max_steps` effect records.
+    ///
+    /// Prefer [`Cpu::run_bounded`] when serving untrusted input: an attacker can
+    /// ask for a large `max_steps`, and recording every one of them allocates
+    /// memory proportional to the step count.
     pub fn run(&mut self, max_steps: u64) -> Run {
+        self.run_bounded(max_steps, usize::MAX)
+    }
+
+    /// Run until the program stops, faults, or `max_steps` instructions have
+    /// executed, recording at most `trace_limit` trace entries.
+    ///
+    /// Execution continues past `trace_limit` — the program still runs to
+    /// completion and the final state is exact — but no further effect records
+    /// are kept. This decouples how long a program may run (a CPU bound) from
+    /// how much memory the trace may occupy (a memory bound), which is what a
+    /// public server needs: it can allow a long computation while never
+    /// buffering more than the handful of steps it intends to return, and it
+    /// lets a caller that only wants the final state (grading) pass `0` and
+    /// allocate no trace at all.
+    pub fn run_bounded(&mut self, max_steps: u64, trace_limit: usize) -> Run {
         let mut trace = Vec::new();
         let mut steps = 0u64;
         loop {
@@ -128,7 +148,7 @@ impl Cpu {
             match self.step() {
                 Ok(eff) => {
                     steps += 1;
-                    if (trace.len() as u64) < max_steps {
+                    if trace.len() < trace_limit {
                         trace.push(eff);
                     }
                 }
@@ -1143,6 +1163,30 @@ mod tests {
         assert_eq!(run.stop, Stop::StepLimit);
         assert_eq!(run.steps, 50);
         assert_eq!(run.trace.len(), 50);
+    }
+
+    #[test]
+    fn run_bounded_caps_the_trace_without_capping_execution() {
+        // The program runs to the full step limit, but the trace stops growing
+        // at trace_limit. This is what lets a public server allow a long run
+        // while never buffering more than it intends to return.
+        let asm = assemble_at("here:\njmp here", BASE).unwrap();
+        let mut cpu = Cpu::with_code(&asm.bytes, BASE);
+        let run = cpu.run_bounded(1000, 10);
+        assert_eq!(run.stop, Stop::StepLimit);
+        assert_eq!(run.steps, 1000, "execution is not truncated");
+        assert_eq!(run.trace.len(), 10, "the trace is");
+    }
+
+    #[test]
+    fn run_bounded_with_zero_trace_still_computes_the_final_state() {
+        // Grading only needs the final registers, so it records no trace at all.
+        let asm = assemble_at("mov eax, 20\nadd eax, 22\nhlt", BASE).unwrap();
+        let mut cpu = Cpu::with_code(&asm.bytes, BASE);
+        let run = cpu.run_bounded(100, 0);
+        assert_eq!(run.stop, Stop::Halted);
+        assert!(run.trace.is_empty());
+        assert_eq!(cpu.regs.read_full(0), 42);
     }
 
     #[test]

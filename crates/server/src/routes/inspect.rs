@@ -34,7 +34,13 @@ pub async fn inspect(req: Request) -> ApiResult<Json<Value>> {
         return Err(ApiError::bad("request", "no file contents"));
     }
 
-    let image = binfmt::parse(&bytes).map_err(|e| ApiError::bad("binfmt", e.to_string()))?;
+    // Parsing a 16 MiB upload is CPU work; keep it off the async runtime.
+    // `binfmt` is fuzzed and returns `Err` rather than panicking on hostile
+    // input, so the join below effectively never sees a panic.
+    let parsed = tokio::task::spawn_blocking(move || binfmt::parse(&bytes))
+        .await
+        .map_err(|_| ApiError::internal("the parse task panicked"))?;
+    let image = parsed.map_err(|e| ApiError::bad("binfmt", e.to_string()))?;
 
     // `binfmt`'s types serialise directly. Unlike a register's contents, every
     // address in a real executable is far below 2^53, so JSON numbers represent

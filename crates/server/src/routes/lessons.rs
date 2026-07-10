@@ -91,15 +91,21 @@ pub async fn check(
         return Err(ApiError::too_large("answer is larger than 64 KiB"));
     }
 
-    let lesson = state
+    // The curriculum is `&'static`, so the exercise reference outlives the
+    // blocking task and can be moved into it.
+    let exercise: &'static lesson::Exercise = state
         .curriculum
         .lesson(&id)
-        .ok_or_else(|| ApiError::not_found(format!("no lesson `{id}`")))?;
-    let exercise = lesson
+        .ok_or_else(|| ApiError::not_found(format!("no lesson `{id}`")))?
         .exercise(&exercise_id)
         .ok_or_else(|| ApiError::not_found(format!("no exercise `{exercise_id}` in `{id}`")))?;
 
-    // Grading runs the submission on the emulator, under a step limit set by
-    // the exercise. It cannot touch the host.
-    Ok(Json(lesson::check(exercise, &req.answer)))
+    // Grading assembles the submission and runs it on the emulator. That is
+    // attacker-supplied CPU work under a step limit; run it on a blocking
+    // thread. It cannot touch the host.
+    let answer = req.answer;
+    let verdict = tokio::task::spawn_blocking(move || lesson::check(exercise, &answer))
+        .await
+        .map_err(|_| ApiError::internal("the grading task panicked"))?;
+    Ok(Json(verdict))
 }

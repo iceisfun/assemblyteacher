@@ -120,6 +120,9 @@ docker run --rm -v "$PWD":/work asmteacher-dev contrib/test.sh
 - [`docs/architecture.md`](docs/architecture.md) — how the pieces fit together
   and why the boundaries fall where they do.
 - [`docs/api.md`](docs/api.md) — the REST API reference.
+- [`docs/deployment.md`](docs/deployment.md) — exposing it publicly: the
+  security model, the caps the app enforces, and the rate limiting the reverse
+  proxy must add.
 - [`SKILL.md`](SKILL.md) — a step-by-step guide to authoring a new lesson.
 - [`lessons/README.md`](lessons/README.md) — the lesson directory format.
 - Each crate's `lib.rs` carries a module-level overview; `cargo doc --open` is

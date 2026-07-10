@@ -45,6 +45,18 @@ impl ApiError {
             kind: "too_large",
         }
     }
+
+    /// Something went wrong on our side — a background task panicked, say. The
+    /// message is deliberately generic; the detail goes to the log, not to the
+    /// client.
+    pub fn internal(error: impl Into<String>) -> ApiError {
+        ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            error: error.into(),
+            line: None,
+            kind: "internal",
+        }
+    }
 }
 
 impl IntoResponse for ApiError {

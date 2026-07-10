@@ -20,6 +20,13 @@ struct Args {
     /// Directory containing the curriculum.
     #[arg(long, env = "ASMTEACHER_LESSONS", default_value = "lessons")]
     lessons: PathBuf,
+
+    /// A browser origin allowed to call the API cross-origin, e.g.
+    /// `http://localhost:5173` for the Vite dev server. Repeatable. Omit in
+    /// production: the binary serves the frontend from its own origin, so no
+    /// CORS is needed, and no wildcard is ever emitted.
+    #[arg(long = "cors-origin", env = "ASMTEACHER_CORS_ORIGINS", value_delimiter = ',')]
+    cors_origins: Vec<String>,
 }
 
 #[tokio::main]
@@ -56,10 +63,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    if args.cors_origins.is_empty() {
+        tracing::info!("CORS: same-origin only");
+    } else {
+        tracing::info!(origins = ?args.cors_origins, "CORS: cross-origin allowlist");
+    }
+
     let state = Arc::new(AppState {
         // Loaded once, immutable for the life of the process.
         curriculum: Box::leak(Box::new(curriculum)),
         web_dir: args.web,
+        cors_origins: args.cors_origins,
     });
 
     let listener = tokio::net::TcpListener::bind(args.listen).await?;

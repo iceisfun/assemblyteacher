@@ -139,7 +139,11 @@ pub fn check(exercise: &Exercise, answer: &str) -> Verdict {
             };
 
             let mut cpu = Cpu::with_code(&program.bytes, program.origin);
-            let run = cpu.run(*max_steps);
+            // Grading only inspects the final state, so record no trace: on a
+            // public server this is an attacker-supplied program under an
+            // author-chosen step limit, and a full trace would allocate memory
+            // proportional to that limit for data we never read.
+            let run = cpu.run_bounded(*max_steps, 0);
 
             match run.stop {
                 Stop::Halted | Stop::Exited(_) => {}

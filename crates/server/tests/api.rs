@@ -14,7 +14,7 @@ use tower::ServiceExt;
 fn state() -> Arc<AppState> {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lessons");
     let curriculum = lesson::load(dir).expect("lessons load");
-    Arc::new(AppState { curriculum: Box::leak(Box::new(curriculum)), web_dir: None })
+    Arc::new(AppState::api_only(Box::leak(Box::new(curriculum))))
 }
 
 async fn call(method: &str, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
@@ -147,6 +147,51 @@ async fn run_stops_a_program_that_never_terminates() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["stop"]["kind"], "stepLimit");
     assert_eq!(body["steps"], 50);
+}
+
+/// A runaway program is capped at the server's hard step limit even if the
+/// client asks for far more, and the trace it returns is bounded independently
+/// of how many steps ran — the memory the response occupies cannot be driven up
+/// by asking for more steps.
+#[tokio::test]
+async fn run_caps_steps_and_bounds_the_trace_memory() {
+    let (status, body) =
+        post("/api/emu/run", json!({"source": "here:\njmp here", "maxSteps": 100_000_000u64}))
+            .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["stop"]["kind"], "stepLimit");
+    // Ran to the server ceiling, not the 100M the client asked for.
+    assert_eq!(body["steps"], 500_000);
+    // ...but the returned trace is capped far below that.
+    let trace_len = body["trace"].as_array().unwrap().len();
+    assert!(trace_len <= 10_000, "trace was {trace_len}, expected <= 10000");
+    assert_eq!(body["traceTruncated"], true);
+}
+
+/// The step endpoint refuses a state with an absurd number of regions rather
+/// than allocating them all.
+#[tokio::test]
+async fn step_rejects_too_many_regions() {
+    let region =
+        json!({"base": "0x1000", "name": "r", "perms": "rwx", "hex": "90", "truncated": false});
+    let many: Vec<_> = (0..200).map(|_| region.clone()).collect();
+    let state = json!({
+        "registers": {}, "rip": "0x1000",
+        "flags": {"cf": false, "pf": false, "af": false, "zf": false, "sf": false, "of": false, "df": false},
+        "memory": many,
+    });
+    let (status, body) = post("/api/emu/step", json!({"state": state})).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(body["kind"], "too_large");
+}
+
+/// Oversized source is rejected before any work is done.
+#[tokio::test]
+async fn assemble_rejects_oversized_source() {
+    let big = "nop\n".repeat(100_000); // ~400 KiB, over the 256 KiB cap
+    let (status, body) = post("/api/asm/assemble", json!({"source": big})).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(body["kind"], "too_large");
 }
 
 #[tokio::test]

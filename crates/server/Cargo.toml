@@ -25,8 +25,9 @@ serde = { workspace = true }
 serde_json.workspace = true
 thiserror.workspace = true
 axum = { version = "0.8", features = ["multipart"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
-tower-http = { version = "0.6", features = ["fs", "trace", "cors", "limit"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net", "time"] }
+tower = { version = "0.5", features = ["limit", "load-shed"] }
+tower-http = { version = "0.6", features = ["fs", "trace", "cors", "limit", "timeout", "catch-panic"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive", "env"] }
