@@ -69,7 +69,12 @@ export class MemoryViewer extends HTMLElement {
   // A caller that sets bytesPerRow explicitly opts out of this.
   private _bprAuto = true;
   private mq: MediaQueryList | null = null;
-  private onMqChange = (): void => this.applyAutoBpr();
+  // Crossing the phone breakpoint changes the row width and the address format,
+  // so re-render even when bytesPerRow is pinned (applyAutoBpr would no-op).
+  private onMqChange = (): void => {
+    this.applyAutoBpr(false);
+    this.render();
+  };
   private _endianness: Endianness = "little";
   private _regions: Region[] = [];
   private _annotations: Annotation[] = [];
@@ -316,6 +321,13 @@ export class MemoryViewer extends HTMLElement {
     return "0x" + formatAddress(addr, this._addrDigits);
   }
 
+  /** The per-row address label. On a phone the leading "0x" is dropped to save
+   *  width — every row is plainly hex, so the prefix is just noise there. */
+  private formatRowAddr(addr: bigint): string {
+    const hex = formatAddress(addr, this._addrDigits);
+    return this.mq?.matches ? hex : "0x" + hex;
+  }
+
   // ----- rendering ----------------------------------------------------------
 
   private render(): void {
@@ -389,7 +401,7 @@ export class MemoryViewer extends HTMLElement {
 
       const addrEl = document.createElement("span");
       addrEl.className = "mv-addr";
-      addrEl.textContent = this.formatAddr(this.addrOf(rowStart));
+      addrEl.textContent = this.formatRowAddr(this.addrOf(rowStart));
       rowEl.appendChild(addrEl);
 
       const hexEl = document.createElement("span");
