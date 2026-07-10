@@ -169,10 +169,11 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
   overflow: hidden;
   position: relative;
   font-family: var(--mono);
+  max-width: 100%;
 }
-.mv-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
-.mv-search { display: flex; align-items: center; gap: 6px; }
-.mv-search-input { width: 180px; }
+.mv-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px; border-bottom: 1px solid var(--line); background: var(--bg-2); flex-wrap: wrap; }
+.mv-search { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.mv-search-input { width: 180px; max-width: 100%; }
 .mv-search-count { font-size: 12px; color: var(--fg-dim); min-width: 40px; }
 .mv-btn { padding: 4px 8px; }
 .mv-legend, .mv-bookmarks { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
@@ -187,7 +188,12 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
 .mv-rows { position: absolute; inset: 0; }
 .mv-row {
   position: absolute;
-  left: 0; right: 0;
+  /* width:max-content lets a full row be wider than the viewport so the hex
+     grid scrolls horizontally INSIDE .mv-scroll (never the page); min-width:100%
+     keeps rows spanning the full width on desktop. */
+  left: 0; right: auto;
+  width: max-content;
+  min-width: 100%;
   height: 20px;
   line-height: 20px;
   white-space: pre;
@@ -297,7 +303,8 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
 .ie-text { font-size: 16px; color: var(--fg); }
 .ie-len { font-size: 12px; color: var(--fg-dim); }
 .ie-strip { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; }
-.ie-byte { padding: 6px 8px; border-radius: 6px; font-size: 15px; letter-spacing: 1px; cursor: default; border: 1px solid transparent; transition: transform 0.1s; }
+.ie-byte { padding: 6px 8px; border-radius: 6px; font-size: 15px; letter-spacing: 1px; cursor: pointer; border: 1px solid transparent; transition: transform 0.1s; }
+.ie-card { cursor: pointer; }
 .ie-byte.ie-hot { transform: translateY(-2px); box-shadow: 0 3px 10px rgba(0,0,0,0.4); border-color: var(--fg); }
 .ie-cards { display: flex; flex-direction: column; gap: 8px; }
 .ie-card { border: 1px solid var(--line); border-left-width: 4px; border-radius: 6px; padding: 8px 10px; background: var(--bg-1); }
@@ -407,7 +414,17 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
 .chip-unknown, .chip-na { color: var(--fg-faint); border-style: dashed; }
 .fwd { color: var(--accent-2); }
 
-.tbl-scroll { overflow-x: auto; }
+/* Horizontal-scroll container for the wide inspector tables. The layered
+   backgrounds are a CSS scroll-shadow: the edge vignettes appear only while
+   there is more table to scroll to in that direction, hinting the overflow on
+   touch devices that have no persistent scrollbar. */
+.tbl-scroll {
+  overflow-x: auto;
+  background:
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.45), transparent) 0 50% / 16px 100% no-repeat,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.45), transparent) 100% 50% / 16px 100% no-repeat;
+  background-attachment: scroll, scroll;
+}
 .tbl { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 12px; }
 .tbl th, .tbl td { text-align: left; padding: 4px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tbl th { color: var(--fg-dim); font-weight: 500; position: sticky; top: 0; background: var(--bg-1); }
@@ -429,8 +446,84 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
   .mv-flash, .rv-written .rv-val, .ie-byte { animation: none !important; transition: none !important; }
 }
 
-/* ---- narrow screens ---- */
+/* ===================================================================== */
+/* Responsive / mobile                                                   */
+/* ===================================================================== */
+
+/* Long unbreakable tokens in prose must wrap, never widen the page. */
+.prose { overflow-wrap: anywhere; }
+
+/* ---- tablet & stacked layout (≤ 900px) ---- */
 @media (max-width: 900px) {
+  /* Playground: editor on top, output tabs below, each full width. The desktop
+     column heights (calc/flex fills) no longer apply — let content flow so the
+     page itself scrolls. */
   .pg { grid-template-columns: 1fr; height: auto; }
+  .pg-left, .pg-right { overflow: visible; }
+  .tabpanels { overflow: visible; min-height: 0; }
+  /* Monaco has no intrinsic height; give it a real one so it doesn't collapse
+     when the flex parent is content-sized, but keep it bounded so page scroll
+     can get past it. */
+  .pg-editor-host { flex: none; min-height: 320px; height: min(60vh, 460px); }
+  .pg-editor-bar { flex-wrap: wrap; }
+  .pg-status { min-width: 0; overflow-wrap: anywhere; }
+
   .trace-views, .two-col { grid-template-columns: 1fr; }
+  .trace-controls { flex-wrap: wrap; }
+  .trace-scrub { flex: 1 1 100%; order: 3; }
+
+  /* memory-viewer toolbar: let the search field grow and controls wrap. */
+  .mv-search { flex: 1 1 100%; }
+  .mv-search-input { flex: 1 1 auto; width: auto; min-width: 0; }
+  .mv-bmadd { flex: 0 0 auto; }
+}
+
+/* ---- phone (≤ 600px): compact nav, thumb-sized targets ---- */
+@media (max-width: 600px) {
+  .view { padding: 12px; }
+
+  /* Top nav wraps to a second full-width row of equal, tappable buttons
+     instead of overflowing. */
+  .topbar { flex-wrap: wrap; height: auto; gap: 8px 16px; padding: 8px 14px; row-gap: 8px; }
+  .nav { width: 100%; gap: 6px; }
+  .nav a { flex: 1; text-align: center; padding: 12px 8px; border-radius: 8px; }
+
+  /* ≥44px touch targets for everything tappable. */
+  .btn, .tab, button.mv-btn { min-height: 44px; }
+  .btn { padding: 10px 16px; }
+  .tabs { flex-wrap: wrap; }
+  .tabs .tab { flex: 1 1 auto; padding: 10px 8px; min-height: 44px; }
+  .mv-btn, .mv-bm { min-height: 44px; padding: 8px 12px; }
+  .mv-legend-chip { min-height: 40px; padding: 6px 10px; }
+  .rv-head { min-height: 44px; }
+  .rv-flag { min-height: 40px; display: inline-flex; align-items: center; }
+  .ex-choice { min-height: 44px; padding: 4px 0; }
+  .ex-choice input[type="radio"] { width: 20px; height: 20px; }
+  .lesson-card { padding: 16px; }
+
+  /* Scrubber: a fat, thumb-friendly handle and a 44px hit area. */
+  .trace-scrub { height: 44px; }
+  .trace-scrub::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--bg);
+    margin-top: -11px;
+  }
+  .trace-scrub::-webkit-slider-runnable-track { height: 4px; background: var(--line); border-radius: 2px; }
+  .trace-scrub::-moz-range-thumb {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--bg);
+  }
+  .trace-scrub::-moz-range-track { height: 4px; background: var(--line); border-radius: 2px; }
+
+  /* Listings: drop the fixed 110/150px columns so long text wraps instead of
+     forcing width; the panels already scroll internally as a safety net. */
+  .listing-row { grid-template-columns: 90px 1fr; gap: 8px; }
+  .listing-row .li-text { grid-column: 1 / -1; }
+  .li-desc { padding-left: 0; }
+
+  .mv-scroll { height: 300px; }
+
+  /* Register grid comfortably single-column on the narrowest phones. */
+  .rv-grid { grid-template-columns: 1fr; }
 }

@@ -221,13 +221,23 @@ export class InsnExplain extends HTMLElement {
   private wireHighlight(): void {
     const chips = Array.from(this.querySelectorAll<HTMLElement>(".ie-byte"));
     const cards = Array.from(this.querySelectorAll<HTMLElement>(".ie-card"));
-    const setActive = (fi: string | null) => {
+    const apply = (fi: string | null) => {
       for (const c of chips) c.classList.toggle("ie-hot", c.dataset.field === fi);
       for (const c of cards) c.classList.toggle("ie-hot", c.dataset.field === fi);
     };
+    // Hover cross-highlights the chip/card pair (progressive enhancement); tap
+    // PINS it so the correspondence is reachable without a pointer. Hover falls
+    // back to the pinned field when the pointer leaves.
+    let pinned: string | null = null;
+    const setActive = (fi: string | null) => apply(fi ?? pinned);
     for (const el of [...chips, ...cards]) {
       el.addEventListener("mouseenter", () => setActive(el.dataset.field ?? null));
       el.addEventListener("mouseleave", () => setActive(null));
+      el.addEventListener("click", () => {
+        const fi = el.dataset.field ?? null;
+        pinned = pinned === fi ? null : fi;
+        setActive(null);
+      });
     }
   }
 }
