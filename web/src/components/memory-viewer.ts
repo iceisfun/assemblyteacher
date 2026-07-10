@@ -64,6 +64,12 @@ export class MemoryViewer extends HTMLElement {
   private _bytes: Uint8Array = new Uint8Array(0);
   private _base = 0n;
   private _bpr = 16;
+  // When true, the row width tracks the viewport: 16 bytes on desktop, 8 on a
+  // phone (where a 16-byte row would need horizontal scrolling in a tiny box).
+  // A caller that sets bytesPerRow explicitly opts out of this.
+  private _bprAuto = true;
+  private mq: MediaQueryList | null = null;
+  private onMqChange = (): void => this.applyAutoBpr();
   private _endianness: Endianness = "little";
   private _regions: Region[] = [];
   private _annotations: Annotation[] = [];
@@ -95,6 +101,20 @@ export class MemoryViewer extends HTMLElement {
     this.render();
   }
 
+  disconnectedCallback(): void {
+    this.mq?.removeEventListener("change", this.onMqChange);
+  }
+
+  /** Pick a viewport-appropriate row width unless a caller pinned one. */
+  private applyAutoBpr(render = true): void {
+    if (!this._bprAuto) return;
+    const target = this.mq?.matches ? 8 : 16;
+    if (target !== this._bpr) {
+      this._bpr = target;
+      if (render) this.render();
+    }
+  }
+
   // ----- public properties -------------------------------------------------
 
   get bytes(): Uint8Array {
@@ -121,6 +141,7 @@ export class MemoryViewer extends HTMLElement {
     return this._bpr;
   }
   set bytesPerRow(v: number) {
+    this._bprAuto = false;
     this._bpr = Math.max(1, v | 0);
     this.render();
   }
@@ -206,6 +227,14 @@ export class MemoryViewer extends HTMLElement {
   private build(): void {
     this.built = true;
     this.classList.add("mv");
+
+    // Track the phone breakpoint so rows narrow to 8 bytes there. Set before the
+    // first render so the initial paint already uses the right width.
+    if (typeof window !== "undefined" && window.matchMedia) {
+      this.mq = window.matchMedia("(max-width: 600px)");
+      this.mq.addEventListener("change", this.onMqChange);
+      this.applyAutoBpr(false);
+    }
     this.innerHTML = `
       <div class="mv-toolbar">
         <div class="mv-search">

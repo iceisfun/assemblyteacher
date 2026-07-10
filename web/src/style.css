@@ -551,6 +551,11 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
   .li-desc { padding-left: 0; }
 
   .mv-scroll { height: 300px; }
+  /* Rows carry 8 bytes on a phone (set by the component); shrink the type and
+     the addr/hex/ascii gap so a full row fits the narrow column without
+     horizontal scrolling. Annotation offsets are in ch, so they track the
+     smaller font automatically. */
+  .mv-row { font-size: 12px; gap: 8px; }
 
   /* Register grid comfortably single-column on the narrowest phones. */
   .rv-grid { grid-template-columns: 1fr; }
