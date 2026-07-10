@@ -188,7 +188,13 @@ function exampleInstructions(name: string): string[] {
   return [`mov ${name}, ${imm}`, `add ${name}, 1`, `cmp ${name}, 0`];
 }
 
-export function buildRegCard(name: string): HTMLElement {
+export interface RegCardOptions {
+  /** When provided, clicking a register calls this instead of navigating the
+   *  card in place — used by the full-page reference to drive the URL. */
+  onNavigate?: (name: string) => void;
+}
+
+export function buildRegCard(name: string, opts: RegCardOptions = {}): HTMLElement {
   const card = el("div", "help-card help-card-reg");
   if (!lookupReg(name)) {
     card.appendChild(el("div", "help-title", name));
@@ -303,11 +309,26 @@ export function buildRegCard(name: string): HTMLElement {
     card.appendChild(ex);
     fillExampleBytes(examples, rows);
 
-    linkToPlayground(card, `mov ${selected}, 1`);
+    const links = el("div", "help-links");
+    linkToPlayground(links, `mov ${selected}, 1`);
+    // In the popover/embed context, offer a jump to the full-page reference.
+    // On the reference page itself (onNavigate set) that would be circular.
+    if (!opts.onNavigate) {
+      const ref = document.createElement("a");
+      ref.className = "help-pg-link";
+      ref.textContent = "full register reference →";
+      ref.href = `#/registers/${selected}`;
+      links.appendChild(ref);
+    }
+    card.appendChild(links);
   };
 
   let currentSelected = name.toLowerCase();
   const navigate = (to: string): void => {
+    if (opts.onNavigate) {
+      opts.onNavigate(to);
+      return;
+    }
     currentSelected = to;
     render(to);
     card.dispatchEvent(new CustomEvent("help-resize", { bubbles: true }));

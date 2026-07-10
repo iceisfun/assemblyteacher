@@ -75,6 +75,11 @@ and their permissions, symbol table, imports, exports, relocations, and a
 security-mitigations panel (NX, PIE, RELRO, stack canary, CFG, CET). Click
 `.text` to disassemble it.
 
+**Register reference.** A linkable page (`#/registers/<name>`) showing the whole
+general-purpose register file — every family and width — with an interactive
+card that reveals which bits each name owns, how it aliases the others, and what
+a write to it does. The hover cards in lessons link straight to it.
+
 **Memory viewer.** A synchronised hex/ASCII dump built for demonstrations and
 CTF-style challenges: coloured regions, structure overlays, pointer arrows,
 modified-byte highlighting, selectable endianness, search and bookmarks. It

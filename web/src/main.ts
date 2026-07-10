@@ -11,11 +11,13 @@ import "./components/code-editor.ts";
 import { renderPlayground } from "./pages/playground.ts";
 import { renderLessonIndex, renderLesson } from "./pages/lessons.ts";
 import { renderInspector } from "./pages/inspector.ts";
+import { renderRegisters } from "./pages/registers.ts";
 
 const NAV: Array<[string, string]> = [
   ["#/playground", "Playground"],
   ["#/lessons", "Lessons"],
   ["#/inspector", "Inspector"],
+  ["#/registers", "Registers"],
 ];
 
 function mountShell(): { view: HTMLElement; nav: HTMLElement } {
@@ -62,6 +64,15 @@ function route(): void {
   }
   if (hash.startsWith("#/inspector")) {
     renderInspector(view);
+    return;
+  }
+  const regMatch = /^#\/registers\/(.+)$/.exec(hash);
+  if (regMatch) {
+    renderRegisters(view, decodeURIComponent(regMatch[1]!));
+    return;
+  }
+  if (hash.startsWith("#/registers")) {
+    renderRegisters(view);
     return;
   }
   renderPlayground(view);

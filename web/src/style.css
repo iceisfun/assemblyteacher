@@ -724,3 +724,39 @@ pre.md-code .tok-reg:hover { text-decoration: underline dotted rgba(90, 212, 166
 .help-reg-saved.help-callee { background: rgba(90, 212, 166, 0.16); color: var(--ok); }
 .help-reg-saved.help-caller { background: rgba(242, 201, 76, 0.16); color: var(--warn); }
 .help-reg-note { font-size: 12px; color: var(--fg-dim); line-height: 1.45; }
+
+/* ===================================================================== */
+/* Full register reference page (#/registers)                            */
+/* ===================================================================== */
+.reg-page { max-width: 1100px; margin: 0 auto; }
+.reg-page-header h1 { margin: 0 0 6px; }
+.reg-page-intro { color: var(--fg-dim); max-width: 62ch; margin: 0 0 20px; }
+
+.reg-page-layout { display: grid; grid-template-columns: 340px 1fr; gap: 22px; align-items: start; }
+/* The interactive card, framed as a panel (the popover usually supplies the
+   border) and kept in view while the grid scrolls. */
+.reg-page-detail {
+  position: sticky; top: 68px;
+  background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.reg-page-detail .help-card-reg { min-width: 0; }
+
+.reg-page-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.reg-fam {
+  background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 10px 12px;
+}
+.reg-fam.active { border-color: var(--ok); box-shadow: 0 0 0 1px rgba(90, 212, 166, 0.35); }
+.reg-fam-tree { margin-bottom: 6px; }
+.reg-fam-role { font-size: 11px; color: var(--fg-faint); line-height: 1.4; }
+/* A register on the highlighted path (an ancestor of the selected one). */
+.reg-node.onpath { background: rgba(90, 212, 166, 0.10); color: var(--fg); border-color: rgba(90, 212, 166, 0.4); }
+
+/* The two out-links at the foot of the register card. */
+.help-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+
+@media (max-width: 900px) {
+  .reg-page-layout { grid-template-columns: 1fr; }
+  .reg-page-detail { position: static; }
+}
