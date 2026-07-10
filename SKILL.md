@@ -153,10 +153,17 @@ Numbers, mnemonics and registers in your lesson body become interactive
 automatically — **anything inside `` `backticks` `` lights up**. A reader can
 hover (or tap, on a phone) a number to see its binary/decimal/hex readings and a
 nibble-by-nibble breakdown with per-bit place values; a mnemonic to see what it
-does, which flags it touches, and its byte encoding; or a register to see its
-four-width family, the bytes it covers, its role, and whether it is callee- or
-caller-saved. You write nothing special: `` `mov al, 0x2a` `` already makes
-`mov`, `al` and `0x2a` all interactive. All existing lessons got this for free.
+does, its operand forms, which flags it touches, related instructions, and its
+byte encoding; or a register to see its four-width family, the bytes it covers,
+its role, and whether it is callee- or caller-saved. You write nothing special:
+`` `mov al, 0x2a` `` already makes `mov`, `al` and `0x2a` all interactive. All
+existing lessons got this for free.
+
+The mnemonic card links to the **full instruction reference** (`#/instructions`)
+— a searchable, cross-linked page with the operand forms, colour-coded flag
+effects, a visual explanation, worked examples that open in the Playground, and
+related-instruction navigation — the instruction-set counterpart of the register
+reference. The register card links to the register reference the same way.
 
 Two explicit forms give you finer control:
 

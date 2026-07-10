@@ -12,6 +12,7 @@ import { renderPlayground } from "./pages/playground.ts";
 import { renderLessonIndex, renderLesson } from "./pages/lessons.ts";
 import { renderInspector } from "./pages/inspector.ts";
 import { renderRegisters } from "./pages/registers.ts";
+import { renderInstructions } from "./pages/instructions.ts";
 import { renderConvert } from "./pages/convert.ts";
 
 const NAV: Array<[string, string]> = [
@@ -19,6 +20,7 @@ const NAV: Array<[string, string]> = [
   ["#/lessons", "Lessons"],
   ["#/inspector", "Inspector"],
   ["#/registers", "Registers"],
+  ["#/instructions", "Instructions"],
   ["#/convert", "Convert"],
 ];
 
@@ -75,6 +77,15 @@ function route(): void {
   }
   if (hash.startsWith("#/registers")) {
     renderRegisters(view);
+    return;
+  }
+  const insnMatch = /^#\/instructions\/(.+)$/.exec(hash);
+  if (insnMatch) {
+    renderInstructions(view, decodeURIComponent(insnMatch[1]!));
+    return;
+  }
+  if (hash.startsWith("#/instructions")) {
+    renderInstructions(view);
     return;
   }
   if (hash.startsWith("#/convert")) {

@@ -4,7 +4,7 @@
 // inline block.
 
 import { assemble, explain } from "../api.ts";
-import { lookupInsn } from "../core/insninfo.ts";
+import { lookupInsnEntry } from "../core/insninfo.ts";
 import {
   ancestorsOf,
   bitRangeOf,
@@ -375,7 +375,7 @@ function linkToPlayground(card: HTMLElement, prefill: string): void {
  */
 export function buildInsnCard(mnemonic: string, context?: string): HTMLElement {
   const card = el("div", "help-card help-card-insn");
-  const info = lookupInsn(mnemonic);
+  const info = lookupInsnEntry(mnemonic);
   if (!info) {
     card.appendChild(el("div", "help-title", mnemonic));
     card.appendChild(el("div", "help-insn-summary", "No reference available."));
@@ -389,10 +389,31 @@ export function buildInsnCard(mnemonic: string, context?: string): HTMLElement {
 
   card.appendChild(el("div", "help-insn-summary", info.summary));
 
+  // The canonical operand form, so the reader sees the shape at a glance.
+  if (info.syntax[0]) {
+    const syn = el("div", "help-insn-syntax");
+    syn.appendChild(el("code", undefined, info.syntax[0]));
+    card.appendChild(syn);
+  }
+
   const flags = el("div", "help-insn-flags");
   flags.appendChild(el("span", "help-num-label", "flags"));
   flags.appendChild(el("span", "help-flags-value", info.flags));
   card.appendChild(flags);
+
+  // A few related mnemonics, each a link into the full reference.
+  if (info.related.length) {
+    const rel = el("div", "help-insn-related");
+    rel.appendChild(el("span", "help-num-label", "related"));
+    for (const r of info.related.slice(0, 5)) {
+      const a = document.createElement("a");
+      a.className = "help-insn-related-chip";
+      a.textContent = r;
+      a.href = `#/instructions/${r}`;
+      rel.appendChild(a);
+    }
+    card.appendChild(rel);
+  }
 
   // If we know the exact instruction, offer its encoding on demand.
   if (context && /\s/.test(context.trim())) {
@@ -419,6 +440,7 @@ export function buildInsnCard(mnemonic: string, context?: string): HTMLElement {
     card.appendChild(enc);
   }
 
+  const links = el("div", "help-links");
   const link = document.createElement("a");
   link.className = "help-pg-link";
   link.textContent = "try in the Playground →";
@@ -430,7 +452,14 @@ export function buildInsnCard(mnemonic: string, context?: string): HTMLElement {
       /* private mode: fall through, just navigate */
     }
   });
-  card.appendChild(link);
+  links.appendChild(link);
+
+  const ref = document.createElement("a");
+  ref.className = "help-pg-link";
+  ref.textContent = "full instruction reference →";
+  ref.href = `#/instructions/${info.mnemonic}`;
+  links.appendChild(ref);
+  card.appendChild(links);
 
   return card;
 }
