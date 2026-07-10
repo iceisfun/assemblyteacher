@@ -23,6 +23,8 @@ import { reconstruct, type ReconstructedRun } from "../core/emu-state.ts";
 import { SAMPLE_SOURCE } from "../core/samples.ts";
 import { parseHex } from "../core/hex.ts";
 import { parseWord, type Word } from "../core/word.ts";
+import { tokenizeCodeToHtml } from "../core/asm-tokens.ts";
+import { installTokenHelpers } from "../components/info-popover.ts";
 
 /** Format a wire word as a padded hex address for a listing. */
 function fmtAddr(w: Word): string {
@@ -64,6 +66,10 @@ export function renderPlayground(root: HTMLElement): void {
     </section>
   `;
   root.appendChild(page);
+
+  // Enable the hover/tap helper cards for the mnemonic/register/number tokens
+  // this page emits into the listings, the explainer header, and the trace.
+  installTokenHelpers(page);
 
   const editor = new CodeEditor();
   // An instruction card's "try in the Playground" link stashes its instruction
@@ -119,7 +125,7 @@ export function renderPlayground(root: HTMLElement): void {
       row.innerHTML =
         `<span class="li-addr">${fmtAddr(ln.address)}</span>` +
         `<span class="li-hex">${ln.hex}</span>` +
-        `<span class="li-text">${escapeHtml(ln.text)}</span>`;
+        `<span class="li-text">${tokenizeCodeToHtml(escapeHtml(ln.text), ln.text)}</span>`;
       row.addEventListener("click", () => {
         for (const r of list.querySelectorAll(".listing-row"))
           r.classList.remove("li-selected");
@@ -158,7 +164,7 @@ export function renderPlayground(root: HTMLElement): void {
         row.innerHTML =
           `<span class="li-addr">${fmtAddr(insn.ip)}</span>` +
           `<span class="li-hex">${insn.hex}</span>` +
-          `<span class="li-text">${escapeHtml(insn.text)}</span>` +
+          `<span class="li-text">${tokenizeCodeToHtml(escapeHtml(insn.text), insn.text)}</span>` +
           `<span class="li-desc">${escapeHtml(insn.description)}</span>`;
         row.addEventListener("click", () => void showExplainInPanel(insn.hex));
         list.appendChild(row);
@@ -259,10 +265,13 @@ export function renderPlayground(root: HTMLElement): void {
       rbp: snap.registers["rbp"] ?? 0n,
       codeRange: { start: runBase, end: runBase + BigInt(codeLen) },
     });
-    insnEl.textContent =
-      index === 0
-        ? "before first instruction"
-        : `step ${index}/${current.snapshots.length - 1}: ${snap.text}`;
+    if (index === 0) {
+      insnEl.textContent = "before first instruction";
+    } else {
+      const prefix = `step ${index}/${current.snapshots.length - 1}: `;
+      insnEl.innerHTML =
+        escapeHtml(prefix) + tokenizeCodeToHtml(escapeHtml(snap.text), snap.text);
+    }
     posEl.textContent = `${index} / ${current.snapshots.length - 1}`;
   }
 

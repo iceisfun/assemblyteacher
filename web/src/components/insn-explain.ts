@@ -7,6 +7,7 @@
 
 import type { ExplainField, ExplainResponse } from "../api.ts";
 import { parseHex } from "../core/hex.ts";
+import { tokenizeCodeToHtml } from "../core/asm-tokens.ts";
 
 type FieldKind =
   | "prefix"
@@ -116,8 +117,11 @@ export class InsnExplain extends HTMLElement {
     // ---- header: the disassembly text and total length ----
     const header = document.createElement("div");
     header.className = "ie-header";
+    // The disassembly text gets interactive mnemonic/register/number tokens;
+    // the full instruction is passed as context so a mnemonic card can offer
+    // this exact instruction's encoding.
     header.innerHTML =
-      `<span class="ie-text">${escapeHtml(this.data.text)}</span>` +
+      `<span class="ie-text">${tokenizeCodeToHtml(escapeHtml(this.data.text), this.data.text)}</span>` +
       `<span class="ie-len">${this.data.length} bytes</span>`;
     this.appendChild(header);
 

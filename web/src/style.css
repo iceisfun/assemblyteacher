@@ -82,7 +82,10 @@ body {
 }
 .btn:hover { background: var(--bg-3); }
 .btn-primary { background: var(--accent); color: #06121e; border-color: var(--accent); font-weight: 600; }
-.btn-primary:hover { filter: brightness(1.1); }
+/* Re-assert the accent fill on hover: the generic .btn:hover swaps in a dark
+   background, which would leave the near-black label unreadable. Keep the fill,
+   just brighten it. */
+.btn-primary:hover { background: var(--accent); border-color: var(--accent); color: #06121e; filter: brightness(1.12); }
 
 input, select {
   font-family: var(--mono);
