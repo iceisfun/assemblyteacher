@@ -50,6 +50,17 @@ broken one.
 | III. Assembly Language | Your First Instructions | `cmp` is `sub` with the result discarded; building a loop |
 | | Addressing Modes | `[base+index*scale+disp]`; why `rsp` can't be an index |
 | IV. Stack and Heap | The Stack and Call Frames | `call`/`ret` = push/pop rip; the overflow that follows |
+| | Calling Conventions | the System V ABI, the red zone, alignment; why ABIs can't mix |
+| V. Memory | Virtual Memory and Pages | the MMU, page permissions, and the page fault as one mechanism |
+| | The Process Address Space and ASLR | the process layout and what ASLR randomizes |
+| VII. Executable Formats | ELF: From Disk to Memory | sections vs segments, RVA vs offset, what the loader does |
+| VIII. Dynamic Linking | The GOT and the PLT | how a call to `puts` finds `puts`; lazy binding; RELRO |
+| IX. Reverse Engineering | Reading Compiled Code | recognising prologues, loops, `if`s, structs, signedness |
+| | Lab: Patch the Check | defeat a keycheck by flipping one branch |
+| X. Debugging | How Debuggers Work | `int3`, the trap flag, hardware breakpoints and watchpoints |
+| | Stepping, Watchpoints and Inspection | step over vs into, backtraces, conditional breakpoints |
+| XIV. Security | Exploit Mitigations | NX, canaries, ASLR, RELRO, CFG, CET as a cost-raising chain |
+| | Checking a Binary's Defenses | reading the mitigations off a binary with the Inspector |
 
 The proposed full curriculum — fifteen parts through advanced reverse
 engineering — is in [`../docs/architecture.md`](../docs/architecture.md#curriculum).

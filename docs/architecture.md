@@ -210,5 +210,7 @@ proposed parts — a floor to build on, not an exhaustive list:
 15. **Advanced Topics** — JIT, dynamic instrumentation, binary rewriting,
     trampolines, hooks, virtualisation, emulation
 
-Implemented so far: Parts I–IV, seven lessons. Each new lesson is a directory and
-a few passing tests away.
+Implemented so far: 18 lessons across Parts I–V, VII–X and XIV — the stack and
+calling conventions, memory and ASLR, ELF and dynamic linking, reverse
+engineering, debugging internals, and exploit mitigations. Each new lesson is a
+directory and a few passing tests away.

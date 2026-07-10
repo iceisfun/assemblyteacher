@@ -132,8 +132,10 @@ docker run --rm -v "$PWD":/work asmteacher-dev contrib/test.sh
 
 The foundation is complete and the curriculum grows on top of it. Implemented so
 far: the full core-crate stack with differential validation, the REST API, the
-frontend shell with all its visualisations, the lesson framework, and the first
-seven lessons spanning Parts I–IV. The
+frontend shell with all its visualisations, the lesson framework, and eighteen
+lessons spanning Parts I–V, VII–X and XIV — through the stack and calling
+conventions, virtual memory and ASLR, ELF and dynamic linking, reverse
+engineering, debugging internals, and exploit mitigations. The
 [curriculum](docs/architecture.md#curriculum) is intentionally broad and expands
 lesson by lesson on this proven spine.
 
