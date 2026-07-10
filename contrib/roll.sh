@@ -67,7 +67,20 @@ log "Rolling container on $HOST (port $PORT)"
     set -euo pipefail
     IMAGE="$1"; NAME="$2"; PORT="$3"
     docker pull "$IMAGE"
+
+    # Remove the old container, then wait until the name is actually free. A
+    # container with a restart policy can be re-created by Docker's restart
+    # manager the instant we remove it, racing `docker run` for the name; stop
+    # it first to disarm the policy, and poll until nothing holds the name.
+    docker stop "$NAME" >/dev/null 2>&1 || true
     docker rm -f "$NAME" >/dev/null 2>&1 || true
+    for _ in $(seq 1 20); do
+        [ -z "$(docker ps -aq --filter "name=^/${NAME}\$")" ] && break
+        docker rm -f "$NAME" >/dev/null 2>&1 || true
+        sleep 1
+    done
+    [ -z "$(docker ps -aq --filter "name=^/${NAME}\$")" ] || { echo "name still in use" >&2; exit 1; }
+
     docker run -d \
         --name "$NAME" \
         --restart unless-stopped \
