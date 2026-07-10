@@ -66,7 +66,19 @@ export function renderPlayground(root: HTMLElement): void {
   root.appendChild(page);
 
   const editor = new CodeEditor();
-  editor.value = SAMPLE_SOURCE;
+  // An instruction card's "try in the Playground" link stashes its instruction
+  // here before navigating; pick it up so the editor opens on that instruction.
+  let initialSource = SAMPLE_SOURCE;
+  try {
+    const prefill = sessionStorage.getItem("playground-prefill");
+    if (prefill) {
+      initialSource = prefill;
+      sessionStorage.removeItem("playground-prefill");
+    }
+  } catch {
+    /* sessionStorage unavailable; use the sample */
+  }
+  editor.value = initialSource;
   page.querySelector(".pg-editor-host")!.appendChild(editor);
 
   const statusEl = page.querySelector<HTMLElement>(".pg-status")!;

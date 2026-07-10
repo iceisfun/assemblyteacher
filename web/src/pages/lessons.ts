@@ -13,6 +13,7 @@ import {
 } from "../api.ts";
 import { renderMarkdown } from "../core/markdown.ts";
 import { CodeEditor } from "../components/code-editor.ts";
+import { installTokenHelpers } from "../components/info-popover.ts";
 
 export async function renderLessonIndex(root: HTMLElement): Promise<void> {
   root.innerHTML = `<div class="lessons"><h1>Curriculum</h1><div class="lessons-body">loading…</div></div>`;
@@ -86,6 +87,9 @@ export async function renderLesson(root: HTMLElement, id: string): Promise<void>
   article.className = "prose";
   article.innerHTML = renderMarkdown(lesson.body);
   body.appendChild(article);
+  // Light up the numbers and mnemonics in the prose with hover/tap helper cards,
+  // and hydrate any :::number / :::instruction inline embeds.
+  installTokenHelpers(article);
 
   if (lesson.exercises.length) {
     const exWrap = document.createElement("section");

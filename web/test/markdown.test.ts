@@ -13,7 +13,9 @@ test("a GFM table becomes a real <table>, not a paragraph of pipes", () => {
   assert.match(html, /<table class="md-table">/);
   assert.match(html, /<th>binary<\/th>/);
   // Inline code inside a cell is still rendered.
-  assert.match(html, /<td><code>0000<\/code><\/td>/);
+  // The code cell's contents are now tokenized (0000 is a number literal), so
+  // it renders as an interactive chip inside the <code>, not bare text.
+  assert.match(html, /<td><code><span class="tok tok-num"[^>]*data-lit="0000">0000<\/span><\/code><\/td>/);
   assert.match(html, /<td>15<\/td>/);
   // The pipes must not survive as literal text in a paragraph.
   assert.doesNotMatch(html, /<p>[^<]*\|/);

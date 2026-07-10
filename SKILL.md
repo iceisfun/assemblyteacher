@@ -147,6 +147,33 @@ The assembler is NASM-flavoured Intel syntax: labels, `db`/`dw`/`dd`/`dq` data,
 the integer subset only. If an example uses an instruction the assembler does
 not know, the test fails and tells you which line.
 
+## Interactive helpers in prose
+
+Numbers and mnemonics in your lesson body become interactive automatically —
+**anything inside `` `backticks` `` lights up**. A reader can hover (or tap, on a
+phone) a number to see its binary/decimal/hex readings and a nibble-by-nibble
+breakdown with per-bit place values, or a mnemonic to see what it does, which
+flags it touches, and its byte encoding. You write nothing special: `` `mov al,
+0x2a` `` already makes both `mov` and `0x2a` interactive. All existing lessons
+got this for free.
+
+Two explicit forms give you finer control:
+
+- **Forced inline chips**, for a number or instruction *outside* code, or to be
+  deliberate: `:num[0x2a]` and `:insn[lea]`.
+- **Inline embedded cards**, the always-open teaching form — the full
+  decomposition sitting in the page rather than behind a hover:
+
+  ```text
+  :::number 0x2a
+  :::instruction lea rax, [rbx+rcx*4]
+  ```
+
+The intended progression is **scaffolding that fades**: in an early lesson, embed
+the full card with `:::number` so the decomposition is unavoidable; in later
+lessons, rely on the automatic hover chips once the reader has internalised it.
+Same data, two levels of prominence, your choice per lesson.
+
 ## Exercises
 
 Exercises live in the front matter as `[[exercises]]` tables. Every exercise

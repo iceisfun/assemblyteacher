@@ -5,6 +5,13 @@
 // and ordered lists, blockquotes, GFM tables and paragraphs. No external
 // dependency.
 
+import {
+  embedPlaceholder,
+  forcedInsnChip,
+  forcedNumChip,
+  tokenizeCodeToHtml,
+} from "./asm-tokens.ts";
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -15,18 +22,31 @@ function escapeHtml(s: string): string {
 
 // Inline spans applied to already-escaped text.
 function inline(text: string): string {
-  return text
-    .replace(/`([^`]+)`/g, (_m, c: string) => `<code>${c}</code>`)
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
-    .replace(
-      /\[([^\]]+)\]\(([^)\s]+)\)/g,
-      (_m, label: string, href: string) => {
+  return (
+    text
+      // Interactive helper directives, before code spans so a `:num[..]` outside
+      // backticks still works. `:num[0x2a]` / `:insn[lea]` become chips.
+      .replace(/:num\[([^\]]+)\]/g, (_m, lit: string) => forcedNumChip(lit))
+      .replace(/:insn\[([^\]]+)\]/g, (_m, w: string) => forcedInsnChip(w))
+      // Code spans: their contents are tokenised so numbers and mnemonics
+      // inside them become interactive.
+      .replace(/`([^`]+)`/g, (_m, c: string) => `<code>${tokenizeCodeToHtml(c)}</code>`)
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label: string, href: string) => {
         // Only allow http(s), mailto and in-app hash links.
         const safe = /^(https?:|mailto:|#)/i.test(href) ? href : "#";
         return `<a href="${safe}" rel="noopener noreferrer">${label}</a>`;
-      },
-    );
+      })
+  );
+}
+
+// A `:::number 0x2a` / `:::instruction lea rax, [rbx]` block directive → an
+// always-open inline helper card (the teaching form of the hover chip).
+function blockDirective(line: string): string | null {
+  const m = /^:::(number|instruction)\s+(.+)$/.exec(line.trim());
+  if (!m) return null;
+  return embedPlaceholder(m[1] as "number" | "instruction", m[2]!);
 }
 
 // A GFM table separator row: pipes and dashes only, with optional `:` for
@@ -84,7 +104,20 @@ export function renderMarkdown(src: string): string {
         i++;
       }
       i++; // skip closing fence
-      out.push(`<pre class="md-code"><code>${buf.join("\n")}</code></pre>`);
+      // Tokenise the listing so numbers and mnemonics inside it are interactive
+      // too — a disassembly-shaped block is exactly where instruction cards help.
+      out.push(
+        `<pre class="md-code"><code>${tokenizeCodeToHtml(buf.join("\n"))}</code></pre>`,
+      );
+      continue;
+    }
+
+    // Block helper directive: `:::number ...` / `:::instruction ...`.
+    const embed = blockDirective(line);
+    if (embed) {
+      closeList();
+      out.push(embed);
+      i++;
       continue;
     }
 
