@@ -67,6 +67,7 @@ broken one.
 | | PE Exports and Forwarders | export tables, ordinals, forwarded exports, and GetProcAddress lookup |
 | IX. Reverse Engineering | Reading Compiled Code | recognising prologues, loops, `if`s, structs, signedness |
 | | Lab: Patch the Check | defeat a keycheck by flipping one branch |
+| | AOB Scanning | signatures and wildcards; opcode vs operand bytes; branch reach; alignment |
 | X. Debugging | How Debuggers Work | `int3`, the trap flag, hardware breakpoints and watchpoints |
 | | Stepping, Watchpoints and Inspection | step over vs into, backtraces, conditional breakpoints |
 | XI. Memory Structures | Arrays, Strings and Structs | base-plus-index arrays, string representations, field offsets and padding |
