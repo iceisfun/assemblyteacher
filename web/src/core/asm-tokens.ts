@@ -33,18 +33,51 @@ function regChip(word: string): string {
   return `<span class="tok tok-reg" role="button" tabindex="0" data-help="reg" data-reg="${word.toLowerCase()}">${word}</span>`;
 }
 
+/** A hex-dump byte: displays the bare pair (e.g. "b8") but the card reads it as
+ *  a hex value (0xb8). Bare bytes have no `0x`, so they need this normalisation
+ *  the plain number tokenizer can't do without knowing it is looking at a dump. */
+function hexByteChip(byte: string): string {
+  return `<span class="tok tok-num" role="button" tabindex="0" data-help="num" data-lit="0x${byte}">${byte}</span>`;
+}
+
 /**
- * Wrap the numbers and known mnemonics inside already-escaped `code` text.
+ * Is this line a hex dump — whitespace-separated two-hex-digit bytes, at least
+ * two of them? Then every group is a byte, and bare pairs like `b8` or `2a` are
+ * hex, not decimal or a stray word. Detecting the whole line avoids guessing at
+ * an ambiguous single token (`22` alone is decimal; in `48 22 00` it is hex).
+ */
+function isHexDumpLine(line: string): boolean {
+  const groups = line.trim().split(/\s+/);
+  if (groups.length < 2) return false;
+  return groups.every((g) => /^[0-9a-fA-F]{2}$/.test(g));
+}
+
+/**
+ * Wrap the numbers, mnemonics and registers inside already-escaped `code` text.
  * `context` — the full instruction text a mnemonic belongs to, if known — is
  * attached so the instruction card can offer that instruction's encoding.
  */
 export function tokenizeCodeToHtml(escaped: string, context?: string): string {
+  // Process line by line so a hex-dump line can be recognised as a whole.
+  return escaped
+    .split("\n")
+    .map((line) => (isHexDumpLine(line) ? tokenizeHexDump(line) : tokenizeAsm(line, context)))
+    .join("\n");
+}
+
+function tokenizeHexDump(line: string): string {
+  // The line is only 2-hex-digit groups and whitespace, so replacing each pair
+  // is safe and leaves the spacing intact.
+  return line.replace(/[0-9a-fA-F]{2}/g, (b) => hexByteChip(b));
+}
+
+function tokenizeAsm(line: string, context?: string): string {
   let out = "";
   let last = 0;
-  for (const m of escaped.matchAll(TOKEN_RE)) {
+  for (const m of line.matchAll(TOKEN_RE)) {
     const [full, charLit, numLit, word] = m;
     const at = m.index;
-    out += escaped.slice(last, at);
+    out += line.slice(last, at);
     last = at + full.length;
 
     if (charLit && parseNumberLiteral(charLit)) {
@@ -61,7 +94,7 @@ export function tokenizeCodeToHtml(escaped: string, context?: string): string {
       out += full;
     }
   }
-  out += escaped.slice(last);
+  out += line.slice(last);
   return out;
 }
 

@@ -35,3 +35,28 @@ test("forced chips and embed placeholders render", () => {
   assert.match(forcedInsnChip("lea rax, [rbx]"), /data-context="lea rax, \[rbx\]"/);
   assert.match(embedPlaceholder("number", "0x2a"), /help-embed[^>]*data-embed="number"[^>]*data-arg="0x2a"/);
 });
+
+test("a hex-dump line treats every bare byte as hex, not decimal or a word", () => {
+  const html = tokenizeCodeToHtml("b8 2a 00 00 00");
+  // b8 starts with a letter and would otherwise be a plain word; 2a would be
+  // mis-split into decimal 2 + 'a'. Both are now hex bytes.
+  assert.match(html, /data-lit="0xb8">b8</);
+  assert.match(html, /data-lit="0x2a">2a</);
+  assert.equal((html.match(/data-lit="0x00"/g) ?? []).length, 3);
+  assert.equal((html.match(/tok-num/g) ?? []).length, 5);
+});
+
+test("a real instruction's bytes tokenize as hex", () => {
+  const html = tokenizeCodeToHtml("48 8b 44 24 08");
+  assert.match(html, /data-lit="0x48"/);
+  assert.match(html, /data-lit="0x8b"/);
+  assert.equal((html.match(/tok-num/g) ?? []).length, 5);
+});
+
+test("an assembly line is NOT mistaken for a hex dump", () => {
+  const html = tokenizeCodeToHtml("mov eax, 1");
+  assert.match(html, /data-insn="mov"/);
+  assert.match(html, /data-reg="eax"/);
+  assert.match(html, /data-lit="1"/); // decimal 1, not 0x1
+  assert.ok(!/data-lit="0x/.test(html), "no bare byte was hex-normalized");
+});
