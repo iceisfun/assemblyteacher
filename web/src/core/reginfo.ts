@@ -99,6 +99,49 @@ export function isKnownRegister(word: string): boolean {
   return BY_NAME.has(word.toLowerCase());
 }
 
+// Every register name, for scanning. Order does not matter — search ranks.
+const ALL_REG_NAMES: string[] = [...FAMILIES.flat(), ...HIGH_BYTES];
+
+// Role words a reader might type that should surface a register. Value is the
+// canonical 64-bit name; the family's other widths still match by their names.
+const REG_CONCEPTS: Record<string, string> = {
+  accumulator: "rax",
+  counter: "rcx",
+  "stack pointer": "rsp",
+  "frame pointer": "rbp",
+  "base pointer": "rbp",
+  "source index": "rsi",
+  "destination index": "rdi",
+  "return value": "rax",
+};
+
+/**
+ * Rank register names against a query. Mirrors `searchInsns`: exact name first,
+ * then prefix, then substring (for queries of two or more characters, so a lone
+ * "a" does not match half the file), then a role-word concept map and the role
+ * text itself. Returns register names, best first.
+ */
+export function searchRegs(query: string, limit = 8): string[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const concept = REG_CONCEPTS[q];
+  const scored: Array<{ name: string; score: number }> = [];
+  for (const name of ALL_REG_NAMES) {
+    let score = 0;
+    if (name === q) score = 100;
+    else if (name.startsWith(q)) score = 80 - name.length;
+    else if (q.length >= 2 && name.includes(q)) score = 45;
+    if (concept === name) score = Math.max(score, 70);
+    if (score === 0) {
+      const info = lookupReg(name);
+      if (info && info.role.toLowerCase().includes(q)) score = 20;
+    }
+    if (score > 0) scored.push({ name, score });
+  }
+  scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  return scored.slice(0, limit).map((s) => s.name);
+}
+
 /** The byte range a name covers within the 64-bit register, for display. */
 export function regByteRange(info: RegInfo): string {
   const [lo, hi] = bitRangeOf(info.name);

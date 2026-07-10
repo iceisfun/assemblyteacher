@@ -14,6 +14,7 @@ import { renderInspector } from "./pages/inspector.ts";
 import { renderRegisters } from "./pages/registers.ts";
 import { renderInstructions } from "./pages/instructions.ts";
 import { renderConvert } from "./pages/convert.ts";
+import { installCommandPalette, openCommandPalette } from "./components/command-palette.ts";
 
 const NAV: Array<[string, string]> = [
   ["#/playground", "Playground"],
@@ -30,6 +31,9 @@ function mountShell(): { view: HTMLElement; nav: HTMLElement } {
     <header class="topbar">
       <div class="brand">Assembly<span>Teacher</span></div>
       <nav class="nav"></nav>
+      <button class="cmdk-trigger" type="button" aria-label="Search (Ctrl-K)">
+        <span>Search</span><kbd>⌘K</kbd>
+      </button>
     </header>
     <main class="view"></main>
   `;
@@ -41,6 +45,9 @@ function mountShell(): { view: HTMLElement; nav: HTMLElement } {
     a.dataset.route = href;
     nav.appendChild(a);
   }
+  app
+    .querySelector<HTMLButtonElement>(".cmdk-trigger")!
+    .addEventListener("click", () => openCommandPalette());
   return { view: app.querySelector<HTMLElement>(".view")!, nav };
 }
 
@@ -96,5 +103,6 @@ function route(): void {
 }
 
 window.addEventListener("hashchange", route);
+installCommandPalette();
 if (!location.hash) location.hash = "#/playground";
 route();

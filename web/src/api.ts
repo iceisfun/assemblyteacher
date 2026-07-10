@@ -528,3 +528,25 @@ export function checkExercise(
     req,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Site search. Server-side over the curriculum; the frontend federates these
+// lesson hits with its register/instruction catalogs. Each hit carries a `kind`
+// (currently always "lesson") so the shape is ready for more kinds server-side.
+// ---------------------------------------------------------------------------
+
+export interface SearchHit {
+  kind: "lesson";
+  id: string;
+  title: string;
+  part: number;
+  field: string;
+  snippet: string;
+  score: number;
+}
+
+export function search(q: string, limit = 12): Promise<SearchHit[]> {
+  return request<SearchHit[]>(
+    `/api/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+  );
+}

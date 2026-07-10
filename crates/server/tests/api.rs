@@ -284,6 +284,19 @@ async fn an_unknown_lesson_is_a_404() {
 }
 
 #[tokio::test]
+async fn search_finds_a_term_and_tags_the_kind() {
+    let (status, body) = get("/api/search?q=ModRM").await;
+    assert_eq!(status, StatusCode::OK);
+    let hits = body.as_array().expect("array of hits");
+    let modrm = hits
+        .iter()
+        .find(|h| h["id"] == "addressing-modes")
+        .expect("addressing-modes lesson for ModRM");
+    assert_eq!(modrm["kind"], "lesson");
+    assert!(modrm["snippet"].as_str().is_some_and(|s| !s.is_empty()));
+}
+
+#[tokio::test]
 async fn grading_an_assemble_exercise_accepts_any_correct_encoding() {
     let uri = "/api/lessons/registers/exercises/a-zero-eax/check";
     let (status, body) = post(uri, json!({"answer": "xor eax, eax"})).await;

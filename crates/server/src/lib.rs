@@ -125,6 +125,7 @@ pub fn app(state: Arc<AppState>) -> Router {
             post(routes::inspect::inspect)
                 .layer(DefaultBodyLimit::max(routes::inspect::MAX_UPLOAD)),
         )
+        .route("/search", get(routes::search::search))
         .route("/lessons", get(routes::lessons::index))
         .route("/lessons/{id}", get(routes::lessons::get))
         .route("/lessons/{id}/exercises/{exercise_id}/check", post(routes::lessons::check))

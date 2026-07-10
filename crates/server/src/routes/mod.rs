@@ -4,3 +4,4 @@ pub mod asm;
 pub mod emu;
 pub mod inspect;
 pub mod lessons;
+pub mod search;

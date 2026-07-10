@@ -35,6 +35,7 @@ pub mod check;
 pub mod error;
 pub mod load;
 pub mod model;
+pub mod search;
 pub mod validate;
 
 pub use check::{check, from_hex, to_hex};
@@ -44,4 +45,5 @@ pub use model::{
     Curriculum, Example, Exercise, ExerciseKind, Language, Lesson, Part, PublicExercise,
     PublicLesson, Verdict,
 };
+pub use search::{search, SearchHit};
 pub use validate::validate;
