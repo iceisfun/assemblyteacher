@@ -46,21 +46,30 @@ broken one.
 | I. Computer Fundamentals | Binary and Hexadecimal | why hex (not octal) is universal; a byte's meaning comes from its reader |
 | | Signed Integers | two's complement as the encoding the adder already implements |
 | | Endianness | why the low byte lives at the low address, and where big-endian survives |
+| | Bitwise Operations and Shifts | masks, bit tests, shifts, sign extension and zero extension |
 | II. CPU Architecture | Registers | the zero-extension rule, the `ah`/`spl` collision, the flags |
 | III. Assembly Language | Your First Instructions | `cmp` is `sub` with the result discarded; building a loop |
 | | Addressing Modes | `[base+index*scale+disp]`; why `rsp` can't be an index |
 | IV. Stack and Heap | The Stack and Call Frames | `call`/`ret` = push/pop rip; the overflow that follows |
 | | Calling Conventions | the System V ABI, the red zone, alignment; why ABIs can't mix |
+| | Heap Allocation | chunks, allocator metadata, reuse, and heap lifetime bugs |
 | V. Memory | Virtual Memory and Pages | the MMU, page permissions, and the page fault as one mechanism |
 | | The Process Address Space and ASLR | the process layout and what ASLR randomizes |
+| VI. Processes | Processes and File Descriptors | process isolation, descriptor tables, fork-style copying and exec replacement |
+| | Threads and Synchronization | shared address spaces, races, locks and atomics |
 | VII. Executable Formats | ELF: From Disk to Memory | sections vs segments, RVA vs offset, what the loader does |
 | VIII. Dynamic Linking | The GOT and the PLT | how a call to `puts` finds `puts`; lazy binding; RELRO |
 | IX. Reverse Engineering | Reading Compiled Code | recognising prologues, loops, `if`s, structs, signedness |
 | | Lab: Patch the Check | defeat a keycheck by flipping one branch |
 | X. Debugging | How Debuggers Work | `int3`, the trap flag, hardware breakpoints and watchpoints |
 | | Stepping, Watchpoints and Inspection | step over vs into, backtraces, conditional breakpoints |
+| XI. Memory Structures | Arrays, Strings and Structs | base-plus-index arrays, string representations, field offsets and padding |
+| | Containers in Memory | vectors, strings, lists, trees and hash tables as concrete layouts |
+| XII. Compiler Behavior | Optimization Patterns | inlining, register allocation, frame omission, strength reduction and tail calls |
+| XIII. OS Interaction | Syscalls, Exceptions and Signals | user/kernel transitions, page faults, traps and Unix signal delivery |
 | XIV. Security | Exploit Mitigations | NX, canaries, ASLR, RELRO, CFG, CET as a cost-raising chain |
 | | Checking a Binary's Defenses | reading the mitigations off a binary with the Inspector |
+| XV. Advanced Topics | Capstone: Inspect, Trace, Patch | tie inspection, tracing, ASLR, patching and mitigations into one workflow |
 
 The proposed full curriculum — fifteen parts through advanced reverse
 engineering — is in [`../docs/architecture.md`](../docs/architecture.md#curriculum).
