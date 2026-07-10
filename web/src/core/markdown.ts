@@ -9,6 +9,7 @@ import {
   embedPlaceholder,
   forcedInsnChip,
   forcedNumChip,
+  forcedRegChip,
   tokenizeCodeToHtml,
 } from "./asm-tokens.ts";
 
@@ -28,6 +29,7 @@ function inline(text: string): string {
       // backticks still works. `:num[0x2a]` / `:insn[lea]` become chips.
       .replace(/:num\[([^\]]+)\]/g, (_m, lit: string) => forcedNumChip(lit))
       .replace(/:insn\[([^\]]+)\]/g, (_m, w: string) => forcedInsnChip(w))
+      .replace(/:reg\[([^\]]+)\]/g, (_m, w: string) => forcedRegChip(w))
       // Code spans: their contents are tokenised so numbers and mnemonics
       // inside them become interactive.
       .replace(/`([^`]+)`/g, (_m, c: string) => `<code>${tokenizeCodeToHtml(c)}</code>`)

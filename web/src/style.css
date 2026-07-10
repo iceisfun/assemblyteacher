@@ -579,18 +579,30 @@ pre.md-code .tok:hover, pre.md-code .tok:focus-visible {
 
 .help-num-rows { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin-bottom: 10px; }
 .help-num-row { display: contents; }
-.help-num-label { color: var(--fg-dim); font-size: 12px; }
+.help-num-label { color: var(--fg-dim); font-size: 12px; white-space: nowrap; }
 .help-num-value { font-family: var(--mono); cursor: pointer; word-break: break-all; }
 .help-num-value:hover { color: var(--accent); }
 .help-num-value.copied { color: var(--ok); }
 
-/* The nibble grid: four bits per group, hex digit beneath. */
-.help-nibbles { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+/* The number card keeps a stable width so toggling 8/16/32/64 never makes it
+   jitter sideways; the nibble grid grows only downward, in whole rows. */
+.help-card-num { min-width: 284px; }
+
+/* The nibble grid: four bits per group, hex digit beneath. A fixed four-groups-
+   per-row grid means the width never changes and the height grows in even steps
+   (8-bit -> 1 row, 32-bit -> 2 rows, 64-bit -> 4 rows). */
+.help-nibbles {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  gap: 8px 12px;
+  justify-content: start;
+  margin: 4px 0 8px;
+}
 .help-nibble { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.help-nibble-bits { display: flex; gap: 2px; }
+.help-nibble-bits { display: flex; gap: 1px; }
 .help-bit {
-  width: 18px; height: 22px; line-height: 22px; text-align: center;
-  font-family: var(--mono); font-size: 12px;
+  width: 14px; height: 20px; line-height: 20px; text-align: center;
+  font-family: var(--mono); font-size: 11px;
   background: var(--bg-1); border: 1px solid var(--line); border-radius: 3px;
   color: var(--fg-faint); cursor: pointer;
 }
@@ -647,3 +659,25 @@ pre.md-code .tok:hover, pre.md-code .tok:focus-visible {
     max-width: none;
   }
 }
+
+/* Register tokens: a subtly different, calmer treatment than numbers and
+   mnemonics, since registers appear in nearly every line of assembly. */
+.tok-reg { text-decoration-color: rgba(90, 212, 166, 0.55); }
+.tok-reg:hover, .tok-reg:focus-visible { background: rgba(90, 212, 166, 0.14); }
+pre.md-code .tok-reg:hover { text-decoration: underline dotted rgba(90, 212, 166, 0.7); }
+
+/* Register card: the four-width family ladder, role, and preservation note. */
+.help-card-reg .help-mnemonic { color: var(--ok); }
+.help-reg-ladder { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.help-reg-rung {
+  font-family: var(--mono); font-size: 12px; padding: 2px 8px;
+  background: var(--bg-1); border: 1px solid var(--line); border-radius: 5px; color: var(--fg-dim);
+}
+.help-reg-rung.current { background: rgba(90, 212, 166, 0.18); color: var(--fg); border-color: var(--ok); }
+.help-reg-high { border-style: dashed; }
+.help-reg-role { line-height: 1.45; margin-bottom: 8px; }
+.help-reg-notes { display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
+.help-reg-saved { font-size: 11px; font-family: var(--mono); align-self: flex-start; padding: 1px 7px; border-radius: 10px; }
+.help-reg-saved.help-callee { background: rgba(90, 212, 166, 0.16); color: var(--ok); }
+.help-reg-saved.help-caller { background: rgba(242, 201, 76, 0.16); color: var(--warn); }
+.help-reg-note { font-size: 12px; color: var(--fg-dim); }

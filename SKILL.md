@@ -149,18 +149,19 @@ not know, the test fails and tells you which line.
 
 ## Interactive helpers in prose
 
-Numbers and mnemonics in your lesson body become interactive automatically —
-**anything inside `` `backticks` `` lights up**. A reader can hover (or tap, on a
-phone) a number to see its binary/decimal/hex readings and a nibble-by-nibble
-breakdown with per-bit place values, or a mnemonic to see what it does, which
-flags it touches, and its byte encoding. You write nothing special: `` `mov al,
-0x2a` `` already makes both `mov` and `0x2a` interactive. All existing lessons
-got this for free.
+Numbers, mnemonics and registers in your lesson body become interactive
+automatically — **anything inside `` `backticks` `` lights up**. A reader can
+hover (or tap, on a phone) a number to see its binary/decimal/hex readings and a
+nibble-by-nibble breakdown with per-bit place values; a mnemonic to see what it
+does, which flags it touches, and its byte encoding; or a register to see its
+four-width family, the bytes it covers, its role, and whether it is callee- or
+caller-saved. You write nothing special: `` `mov al, 0x2a` `` already makes
+`mov`, `al` and `0x2a` all interactive. All existing lessons got this for free.
 
 Two explicit forms give you finer control:
 
-- **Forced inline chips**, for a number or instruction *outside* code, or to be
-  deliberate: `:num[0x2a]` and `:insn[lea]`.
+- **Forced inline chips**, for a token *outside* code, or to be deliberate:
+  `:num[0x2a]`, `:insn[lea]`, `:reg[rax]`.
 - **Inline embedded cards**, the always-open teaching form — the full
   decomposition sitting in the page rather than behind a hover:
 

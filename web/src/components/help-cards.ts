@@ -5,6 +5,7 @@
 
 import { assemble, explain } from "../api.ts";
 import { lookupInsn } from "../core/insninfo.ts";
+import { lookupReg, regByteRange, type RegInfo } from "../core/reginfo.ts";
 import {
   atWidth,
   nibbles,
@@ -98,7 +99,12 @@ export function buildNumberCard(lit: string): HTMLElement {
     toggle.appendChild(el("span", "help-num-label", "width"));
     for (const w of widths) {
       const btn = el("button", `help-width${w === info.width ? " active" : ""}`, String(w));
-      btn.addEventListener("click", () => render(atWidth(info, w)));
+      btn.addEventListener("click", () => {
+        render(atWidth(info, w));
+        // The card height changes with the bit count; ask the popover to
+        // re-place itself so it stays inside the viewport.
+        card.dispatchEvent(new CustomEvent("help-resize", { bubbles: true }));
+      });
       toggle.appendChild(btn);
     }
     body.appendChild(toggle);
@@ -110,6 +116,74 @@ export function buildNumberCard(lit: string): HTMLElement {
 
 function defaultDetail(info: NumberInfo): string {
   return `${info.width} bits · one hex digit per group of four · hover a bit for its place value`;
+}
+
+// ---- register card ---------------------------------------------------------
+
+/** A card for a register: its family ladder, the bytes it covers, its role. */
+export function buildRegCard(name: string): HTMLElement {
+  const card = el("div", "help-card help-card-reg");
+  const info = lookupReg(name);
+  if (!info) {
+    card.appendChild(el("div", "help-title", name));
+    return card;
+  }
+
+  const title = el("div", "help-title");
+  title.appendChild(el("span", "help-mnemonic", info.name));
+  title.appendChild(el("span", "help-insn-cat", `${info.width}-bit · ${regByteRange(info)}`));
+  card.appendChild(title);
+
+  // The four-width family ladder, widest to narrowest, current name lit.
+  const ladder = el("div", "help-reg-ladder");
+  const rungs: { label: string; width: number }[] = [
+    { label: info.family[0], width: 64 },
+    { label: info.family[1], width: 32 },
+    { label: info.family[2], width: 16 },
+    { label: info.family[3], width: 8 },
+  ];
+  for (const r of rungs) {
+    const isCurrent = !info.high && r.label === info.name;
+    const rung = el("span", `help-reg-rung${isCurrent ? " current" : ""}`, r.label);
+    rung.title = `${r.width}-bit`;
+    ladder.appendChild(rung);
+  }
+  if (info.highByte) {
+    const rung = el("span", `help-reg-rung help-reg-high${info.high ? " current" : ""}`, info.highByte);
+    rung.title = "high byte — bits 8–15";
+    ladder.appendChild(rung);
+  }
+  card.appendChild(ladder);
+
+  card.appendChild(el("div", "help-reg-role", info.role));
+
+  const notes = el("div", "help-reg-notes");
+  notes.appendChild(el("span", `help-reg-saved help-${info.saved.startsWith("callee") ? "callee" : "caller"}`, info.saved));
+  // The zero-extension rule, exactly where it applies.
+  if (info.width === 32) {
+    notes.appendChild(el("span", "help-reg-note", "a 32-bit write zero-extends into the full 64-bit register"));
+  } else if (info.width === 8 || info.width === 16) {
+    notes.appendChild(el("span", "help-reg-note", `an ${info.width}-bit write merges — the upper bits of ${info.family[0]} survive`));
+  }
+  card.appendChild(notes);
+
+  linkToPlayground(card, info);
+  return card;
+}
+
+function linkToPlayground(card: HTMLElement, info: RegInfo): void {
+  const link = document.createElement("a");
+  link.className = "help-pg-link";
+  link.textContent = "try in the Playground →";
+  link.href = "#/playground";
+  link.addEventListener("click", () => {
+    try {
+      sessionStorage.setItem("playground-prefill", `mov ${info.name}, 1`);
+    } catch {
+      /* private mode */
+    }
+  });
+  card.appendChild(link);
 }
 
 // ---- instruction card ------------------------------------------------------

@@ -13,11 +13,13 @@
 // It also hydrates the always-open inline embeds emitted by the `:::number` /
 // `:::instruction` block directives.
 
-import { buildInsnCard, buildNumberCard } from "./help-cards.ts";
+import { buildInsnCard, buildNumberCard, buildRegCard } from "./help-cards.ts";
 
 let popover: HTMLElement | null = null;
 let pinned = false;
 let hideTimer: number | undefined;
+/** The token the popover is currently anchored to, for re-positioning. */
+let anchor: HTMLElement | null = null;
 
 function ensurePopover(): HTMLElement {
   if (popover) return popover;
@@ -29,6 +31,11 @@ function ensurePopover(): HTMLElement {
   p.addEventListener("mouseenter", () => window.clearTimeout(hideTimer));
   p.addEventListener("mouseleave", () => {
     if (!pinned) scheduleHide();
+  });
+  // A card whose contents changed size (the number width toggle) asks to be
+  // re-placed so it does not drift off-screen.
+  p.addEventListener("help-resize", () => {
+    if (anchor) position(p, anchor);
   });
   document.body.appendChild(p);
   popover = p;
@@ -43,6 +50,9 @@ function cardFor(token: HTMLElement): HTMLElement | null {
   if (kind === "insn" && token.dataset.insn) {
     return buildInsnCard(token.dataset.insn, token.dataset.context);
   }
+  if (kind === "reg" && token.dataset.reg) {
+    return buildRegCard(token.dataset.reg);
+  }
   return null;
 }
 
@@ -52,6 +62,7 @@ function show(token: HTMLElement, pin: boolean): void {
   const p = ensurePopover();
   window.clearTimeout(hideTimer);
   pinned = pin;
+  anchor = token;
 
   p.innerHTML = "";
   if (pin) {

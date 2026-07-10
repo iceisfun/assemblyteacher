@@ -13,6 +13,7 @@
 
 import { isKnownMnemonic } from "./insninfo.ts";
 import { parseNumberLiteral } from "./numinfo.ts";
+import { isKnownRegister } from "./reginfo.ts";
 
 // A number literal, or a bare word (which may be a mnemonic). We tokenise words
 // too so we can test each against the mnemonic set. Order matters: numbers
@@ -26,6 +27,10 @@ function numChip(lit: string): string {
 
 function insnChip(word: string): string {
   return `<span class="tok tok-insn" role="button" tabindex="0" data-help="insn" data-insn="${word.toLowerCase()}">${word}</span>`;
+}
+
+function regChip(word: string): string {
+  return `<span class="tok tok-reg" role="button" tabindex="0" data-help="reg" data-reg="${word.toLowerCase()}">${word}</span>`;
 }
 
 /**
@@ -50,6 +55,8 @@ export function tokenizeCodeToHtml(escaped: string, context?: string): string {
       out += context
         ? insnChip(word).replace("data-insn=", `data-context="${escapeAttr(context)}" data-insn=`)
         : insnChip(word);
+    } else if (word && isKnownRegister(word)) {
+      out += regChip(word);
     } else {
       out += full;
     }
@@ -66,6 +73,12 @@ function escapeAttr(s: string): string {
 export function forcedNumChip(lit: string): string {
   const cleaned = escapeAttr(lit.trim());
   return parseNumberLiteral(cleaned) ? numChip(cleaned) : cleaned;
+}
+
+/** A forced register chip for the `:reg[..]` directive. */
+export function forcedRegChip(word: string): string {
+  const cleaned = word.trim();
+  return isKnownRegister(cleaned) ? regChip(cleaned) : escapeAttr(cleaned);
 }
 
 /** A forced instruction chip for the `:insn[..]` directive. */

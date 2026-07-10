@@ -4,13 +4,19 @@ import {
   tokenizeCodeToHtml, forcedNumChip, forcedInsnChip, embedPlaceholder,
 } from "../src/core/asm-tokens.ts";
 
-test("numbers and mnemonics inside code become interactive tokens", () => {
+test("numbers, mnemonics and registers inside code become interactive tokens", () => {
   const html = tokenizeCodeToHtml("mov al, 0x2a");
   assert.match(html, /class="tok tok-insn"[^>]*data-insn="mov"/);
   assert.match(html, /class="tok tok-num"[^>]*data-lit="0x2a"/);
-  // A register is left plain.
-  assert.ok(html.includes("al,"));
-  assert.ok(!/data-insn="al"/.test(html));
+  // The register is now interactive too, as a distinct kind.
+  assert.match(html, /class="tok tok-reg"[^>]*data-reg="al"/);
+  assert.ok(!/data-insn="al"/.test(html), "al is a register, not a mnemonic");
+});
+
+test("register names of every width are recognised", () => {
+  for (const r of ["rax", "eax", "ax", "al", "ah", "r8", "r8d", "rsp", "spl"]) {
+    assert.match(tokenizeCodeToHtml(r), new RegExp(`data-reg="${r}"`), r);
+  }
 });
 
 test("a non-mnemonic word is not tokenized", () => {
