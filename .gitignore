@@ -11,6 +11,7 @@ npm-debug.log*
 yarn-error.log*
 
 # Build and test scratch
+*.roll.log
 *.o
 *.obj
 *.exe

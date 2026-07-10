@@ -1,0 +1,52 @@
+# Production image for Assembly Teacher.
+#
+# Unlike contrib/Dockerfile (the dev/CI environment with nasm, gdb &c.), this is
+# a minimal runtime image built from source in three stages:
+#
+#   1. build the frontend bundle with Node
+#   2. build the server binary with Rust
+#   3. assemble a distroless runtime with just the binary, the bundle and the
+#      lessons
+#
+# The runtime base is distroless: glibc + libgcc, no shell, no package manager,
+# running as a non-root user. There is nothing in the image to pivot through,
+# which matters for a public service that emulates user-submitted code. The
+# server itself needs no external tools at runtime — the `nasm`/`objdump` in the
+# dev image are only for the differential *tests*.
+#
+#   docker build -f contrib/Dockerfile.deploy -t assemblyteacher .
+#
+# The server serves the API and the frontend from one origin, expects TLS to be
+# terminated upstream, and refuses to start if the curriculum does not validate.
+
+# ---- 1. frontend -----------------------------------------------------------
+FROM node:22-bookworm-slim AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npm run build
+
+# ---- 2. server -------------------------------------------------------------
+FROM rust:1-bookworm AS build
+WORKDIR /build
+# Copy the whole workspace. .dockerignore keeps target/ and node_modules out.
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+# The server embeds nothing from web/ or lessons/ at build time, so they are not
+# needed here; only the crate sources are.
+RUN cargo build --release -p server --bin asmteacher
+
+# ---- 3. runtime ------------------------------------------------------------
+FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
+WORKDIR /app
+COPY --from=build /build/target/release/asmteacher ./asmteacher
+COPY --from=web   /web/dist                        ./web
+COPY lessons/                                       ./lessons/
+
+EXPOSE 54323
+
+# Exec form (there is no shell). The server binds all interfaces on the mapped
+# port; the container is published to a single host port by the deploy script.
+ENTRYPOINT ["/app/asmteacher"]
+CMD ["--listen", "0.0.0.0:54323", "--web", "/app/web", "--lessons", "/app/lessons"]

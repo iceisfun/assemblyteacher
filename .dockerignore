@@ -1,0 +1,10 @@
+# Keep the build context small and reproducible. Everything the image needs is
+# built from source inside the Dockerfile, so send only source.
+target/
+web/node_modules/
+web/dist/
+web/.vite/
+.git/
+*.roll.log
+**/*.rs.bk
+.DS_Store
