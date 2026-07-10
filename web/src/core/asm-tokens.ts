@@ -125,6 +125,23 @@ export function forcedInsnChip(word: string): string {
     : escapeAttr(cleaned);
 }
 
+// Prose: link only register names and hex/binary literals, never mnemonics.
+// Running English is full of words that are also mnemonics ("and", "or", "not",
+// "call", "int", "add", "sub"); linkifying those would be noise. Register names
+// and 0x/0b literals, by contrast, are unambiguous in a sentence.
+const PROSE_RE = /(0x[0-9a-fA-F]+|0b[01]+)|([A-Za-z][A-Za-z0-9]*)/g;
+
+/** Wrap register mentions and hex/binary literals inside plain prose as
+ *  interactive tokens. The input is raw text (not pre-escaped). */
+export function tokenizeProse(text: string): string {
+  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return escaped.replace(PROSE_RE, (full, num?: string, word?: string) => {
+    if (num && parseNumberLiteral(num)) return numChip(num);
+    if (word && isKnownRegister(word)) return regChip(word);
+    return full;
+  });
+}
+
 /** An always-open inline embed placeholder for the `:::number` /
  * `:::instruction` / `:::register` block directives; hydrated by info-popover
  * after render. */

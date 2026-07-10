@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  tokenizeCodeToHtml, forcedNumChip, forcedInsnChip, embedPlaceholder,
+  tokenizeCodeToHtml, forcedNumChip, forcedInsnChip, embedPlaceholder, tokenizeProse,
 } from "../src/core/asm-tokens.ts";
 
 test("numbers, mnemonics and registers inside code become interactive tokens", () => {
@@ -51,6 +51,22 @@ test("a real instruction's bytes tokenize as hex", () => {
   assert.match(html, /data-lit="0x48"/);
   assert.match(html, /data-lit="0x8b"/);
   assert.equal((html.match(/tok-num/g) ?? []).length, 5);
+});
+
+test("prose links registers and hex literals, but not mnemonic-like English words", () => {
+  const html = tokenizeProse(
+    "the call number goes in rax and arguments in rdi, rsi, r10; or set bit 0x80",
+  );
+  // Registers become interactive tokens.
+  for (const r of ["rax", "rdi", "rsi", "r10"]) {
+    assert.match(html, new RegExp(`data-reg="${r}"`), r);
+  }
+  // A hex literal becomes a number token.
+  assert.match(html, /data-lit="0x80"/);
+  // English words that are also mnemonics ("call", "or", "and", "set") stay plain.
+  assert.ok(!/data-insn=/.test(html), "no mnemonic tokens in prose");
+  // A bare decimal ("0" in "bit 0") is not linkified — that would be prose noise.
+  assert.ok(!/data-lit="0"/.test(html), "bare decimals stay plain in prose");
 });
 
 test("an assembly line is NOT mistaken for a hex dump", () => {

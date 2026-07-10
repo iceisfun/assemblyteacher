@@ -10,7 +10,7 @@
 // and the number/byte helpers without extra wiring.
 
 import { installTokenHelpers } from "../components/info-popover.ts";
-import { tokenizeCodeToHtml } from "../core/asm-tokens.ts";
+import { tokenizeCodeToHtml, tokenizeProse } from "../core/asm-tokens.ts";
 import {
   allInsnEntries,
   FLAGS,
@@ -135,6 +135,14 @@ function section(title: string): HTMLElement {
   return s;
 }
 
+/** A prose element whose register mentions and hex literals become interactive
+ *  tokens (but whose mnemonic-like English words are left alone). */
+function prose(tag: string, className: string, text: string): HTMLElement {
+  const e = el(tag, className);
+  e.innerHTML = tokenizeProse(text);
+  return e;
+}
+
 /** A block of interactive code lines (registers/numbers become hover tokens). */
 function codeLines(lines: string[], withPlayground: boolean): HTMLElement {
   const wrap = el("div", "insn-code-list");
@@ -175,8 +183,8 @@ function renderDetail(entry: InsnEntry): HTMLElement {
   head.appendChild(el("span", "insn-cat", entry.category));
   card.appendChild(head);
 
-  card.appendChild(el("p", "insn-summary", entry.summary));
-  card.appendChild(el("p", "insn-desc", entry.description));
+  card.appendChild(prose("p", "insn-summary", entry.summary));
+  card.appendChild(prose("p", "insn-desc", entry.description));
 
   // Syntax / operand forms.
   const syn = section("Syntax");
@@ -200,7 +208,7 @@ function renderDetail(entry: InsnEntry): HTMLElement {
   // Encoding.
   if (entry.encoding) {
     const enc = section("Encoding");
-    enc.appendChild(el("p", "insn-note-text", entry.encoding));
+    enc.appendChild(prose("p", "insn-note-text", entry.encoding));
     card.appendChild(enc);
   }
 
@@ -213,7 +221,7 @@ function renderDetail(entry: InsnEntry): HTMLElement {
   if (entry.notes.length) {
     const notes = section("Notes");
     const ul = el("ul", "insn-notes");
-    for (const n of entry.notes) ul.appendChild(el("li", undefined, n));
+    for (const n of entry.notes) ul.appendChild(prose("li", "", n));
     notes.appendChild(ul);
     card.appendChild(notes);
   }
