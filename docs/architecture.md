@@ -210,8 +210,8 @@ proposed parts — a floor to build on, not an exhaustive list:
 15. **Advanced Topics** — JIT, dynamic instrumentation, binary rewriting,
     trampolines, hooks, virtualisation, emulation
 
-Implemented so far: 27 lessons across Parts I–XV — computer fundamentals, the
-stack and heap, processes, memory and ASLR, ELF and dynamic linking, reverse
+Implemented so far: 34 lessons across Parts I–XV — computer fundamentals, the
+stack and heap, processes, memory and ASLR, ELF, PE, dynamic linking, reverse
 engineering, debugging internals, memory structures, compiler behavior, OS
 interaction, exploit mitigations, and a capstone workflow. Each new lesson is a
 directory and a few passing tests away.

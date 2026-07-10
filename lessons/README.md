@@ -58,7 +58,13 @@ broken one.
 | VI. Processes | Processes and File Descriptors | process isolation, descriptor tables, fork-style copying and exec replacement |
 | | Threads and Synchronization | shared address spaces, races, locks and atomics |
 | VII. Executable Formats | ELF: From Disk to Memory | sections vs segments, RVA vs offset, what the loader does |
+| | PE: From Disk to Memory | MZ, PE headers, RVAs, data directories, sections and loader work |
+| | TLS Callbacks: Code Before main | PE TLS, callbacks before entry point, and the entry-point trap |
+| | Entry Point to main | loader entry, CRT startup, constructors, user main, and exit |
 | VIII. Dynamic Linking | The GOT and the PLT | how a call to `puts` finds `puts`; lazy binding; RELRO |
+| | The Import Address Table | PE imports, ILT/IAT, API Sets, delay loading, and import signals |
+| | Rebasing, Relocations, and Windows ASLR | ImageBase, base relocation blocks, and Windows ASLR behavior |
+| | PE Exports and Forwarders | export tables, ordinals, forwarded exports, and GetProcAddress lookup |
 | IX. Reverse Engineering | Reading Compiled Code | recognising prologues, loops, `if`s, structs, signedness |
 | | Lab: Patch the Check | defeat a keycheck by flipping one branch |
 | X. Debugging | How Debuggers Work | `int3`, the trap flag, hardware breakpoints and watchpoints |
@@ -69,6 +75,7 @@ broken one.
 | XIII. OS Interaction | Syscalls, Exceptions and Signals | user/kernel transitions, page faults, traps and Unix signal delivery |
 | XIV. Security | Exploit Mitigations | NX, canaries, ASLR, RELRO, CFG, CET as a cost-raising chain |
 | | Checking a Binary's Defenses | reading the mitigations off a binary with the Inspector |
+| | Stack Canaries and Security Cookies | compiler stack guards, Linux canaries, Windows `/GS`, and failure triage |
 | XV. Advanced Topics | Capstone: Inspect, Trace, Patch | tie inspection, tracing, ASLR, patching and mitigations into one workflow |
 
 The proposed full curriculum — fifteen parts through advanced reverse
