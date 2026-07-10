@@ -173,6 +173,12 @@ function installGlobal(): void {
   window.addEventListener("scroll", () => {
     if (!pinned) hide();
   });
+  // Navigating away (e.g. tapping "full register reference →") re-renders the
+  // page under the popover; the popover lives on <body>, so close it or a
+  // pinned card is left floating over the new page. This is the mobile path,
+  // where a pinned card has no hover-out to dismiss it.
+  window.addEventListener("hashchange", hide);
+  window.addEventListener("popstate", hide);
 }
 
 function hydrateEmbeds(root: ParentNode): void {
