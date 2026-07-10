@@ -2,12 +2,14 @@
 id = "iat-and-imports"
 title = "The Import Address Table"
 order = 2
-estimated_minutes = 35
+estimated_minutes = 40
 objectives = [
   "Explain why a PE cannot hard-code the address of a DLL function, and how the import table solves it",
   "Trace the two parallel arrays — the lookup table and the IAT — and say what each holds before and after loading",
   "Recognise a call through the IAT in disassembly and contrast it with an ELF PLT/GOT call",
   "Describe delay loading and binding as the Windows answers to lazy resolution",
+  "Explain why an import named api-ms-win-*.dll need not exist on disk, and how the ApiSetMap redirects it at load time",
+  "Read an import list as analysis signals — treating each observation as one signal to weigh, not as proof",
 ]
 prerequisites = ["got-and-plt", "pe-disk-to-memory"]
 
@@ -60,6 +62,32 @@ hints = [
   "`ff /2` is an indirect `call`; the ModRM byte `15` selects the RIP-relative memory form.",
   "The target is *read from* the IAT slot at `[rip+0x2fe2]`, whose contents the loader wrote — compare the ELF PLT's `jmp qword [rip+...]` through the GOT.",
 ]
+
+[[exercises]]
+id = "q-api-set"
+kind = "quiz"
+prompt = "You are analysing a PE and its import table lists `api-ms-win-core-memory-l1-1-0.dll`, but that file is nowhere on the disk. What is going on?"
+choices = [
+  "The binary is corrupt — the import points at a missing file",
+  "It is an API Set: a virtual contract name, not a physical DLL. The loader consults the ApiSetMap during process init and redirects it to a real implementation DLL (often KernelBase.dll), which version varies by Windows release",
+  "The DLL was deleted by malware to hide its tracks",
+  "It is an encrypted DLL that decrypts itself at runtime",
+]
+answer = 1
+explanation = "Names like api-ms-win-core-*-l1-1-0.dll are API Set contracts, not files. Modern Windows decouples the logical API surface from the DLL that implements it: at process initialisation the loader reads the ApiSetMap and rewrites the contract name to whatever DLL provides it on this Windows version (commonly KernelBase.dll). The redirection happens before ordinary import resolution, which is why the 'file' never appears on disk. Compilers and the SDK emit these for everyday programs, so their presence says nothing on its own."
+
+[[exercises]]
+id = "q-protect-signal"
+kind = "quiz"
+prompt = "During analysis you observe a code region's protection change from executable-only to writable and then, shortly after, back to its original protection. How should you weigh that observation?"
+choices = [
+  "As proof the program is malicious",
+  "As one signal worth a closer look, not evidence by itself — legitimate software (JIT compilers, instrumentation, debuggers, security products) performs the same operation, so it must be corroborated",
+  "As irrelevant; protection changes are never interesting",
+  "As proof the program is a JIT compiler",
+]
+answer = 1
+explanation = "A brief transition from a settled protection to writable and back is uncommon in typical business applications and may warrant closer inspection during malware analysis. But legitimate software — JIT compilers, garbage collectors, allocators, debuggers, hot-patchers, emulators, anti-cheat — performs similar operations, so the observation is one signal to weigh among others, not evidence of malicious behaviour on its own. Good analysis corroborates; it does not convict on a single API."
 +++
 
 # The Import Address Table
@@ -138,6 +166,48 @@ The `__declspec(dllimport)` you may have seen in Windows headers is exactly the
 compiler's promise to emit this `call [slot]` form instead of a direct call —
 telling it "this symbol lives in another image, go through the table."
 
+## When the import isn't a file: API Sets
+
+Read the imports of almost any modern PE and you will find entries like these:
+
+```text
+  api-ms-win-core-memory-l1-1-0.dll
+  api-ms-win-core-synch-l1-2-0.dll
+  api-ms-win-core-file-l2-1-0.dll
+```
+
+The natural assumption — that these are DLLs on disk — is usually wrong. Go
+looking in `System32` and you often will not find them. They are **API Sets**:
+logical *contract* names, not physical files.
+
+Historically a program imported `kernel32.dll`, `user32.dll`, and their siblings
+directly, and those files really existed. Modern Windows added a layer of
+indirection between the API surface and the DLL that implements it. An API Set
+name like `api-ms-win-core-memory-l1-1-0.dll` names a *contract* — "the level-1
+core memory API, version 1.0" — and says nothing about which file provides it.
+
+The resolution happens early. During process initialisation, before ordinary
+import resolution, the loader consults the process's **ApiSetMap** (a table the
+system supplies) and rewrites each contract name to the real implementation DLL:
+
+```text
+  api-ms-win-core-memory-l1-1-0.dll   ──ApiSetMap──►   kernelbase.dll
+```
+
+Three things matter to a reverse engineer:
+
+- **These are virtual names.** An import that resolves fine at runtime can have
+  no matching file on disk; do not treat a "missing" API-Set DLL as suspicious.
+- **The redirection is version-dependent.** The same contract may map to
+  different implementation DLLs on different Windows releases, so the file an
+  import ends up in is not fixed.
+- **Everyone uses them.** The compiler and SDK emit API-Set imports for ordinary
+  programs; malware, packers and business apps alike carry them. Their presence
+  is background noise, not a signal.
+
+This is the main reason an import table does not always correspond to files on
+disk — and knowing it saves you from chasing a DLL that was never meant to exist.
+
 ## Eager by default; delay loading for lazy
 
 The ELF lesson made a point of *lazy binding* — the GOT slot resolved on first
@@ -168,6 +238,60 @@ deliberately to watch or reroute a program's library calls. Point the Inspector
 at a PE and it lists each import, its library, and its IAT slot address; that
 list is both the map a reverser reads and the surface a hooker writes.
 
+## Reading the import list as signals
+
+The import table is not only a mechanism; it is the first thing an analyst reads,
+because *what a program imports hints at what it can do*. A binary that imports
+only `CreateFileW`, `ReadFile` and `printf`-style functions has a small
+vocabulary; one that also imports `GetProcAddress`, `LoadLibraryW` and the memory
+functions below has the vocabulary to assemble behaviour at runtime that its
+static call graph does not show. Neither is proof of anything — it is context you
+carry into the rest of the analysis.
+
+One import worth understanding in its own right is **`VirtualProtect`**. The
+virtual-memory lesson established that every page carries read/write/execute
+permission bits the MMU checks on every access, and that the **W^X** rule keeps
+no page both writable and executable. `VirtualProtect` is the Windows API that
+**changes the protection of an existing region of virtual memory**. Windows names
+the protection with `PAGE_*` constants that are just combinations of those same
+R/W/X bits:
+
+| constant | meaning |
+|---|---|
+| `PAGE_READONLY` | read only |
+| `PAGE_READWRITE` | read + write, not executable |
+| `PAGE_EXECUTE` | execute only |
+| `PAGE_EXECUTE_READ` | read + execute — a normal code page |
+| `PAGE_EXECUTE_READWRITE` | read + write + execute — the W^X-violating combination |
+| `PAGE_GUARD` | a one-shot tripwire: the next access faults, then the flag clears |
+
+These are fundamental operating-system concepts, and legitimate software changes
+page protection constantly. A **JIT compiler** writes machine code into a buffer
+and then must make it executable; **garbage collectors** and **memory
+allocators** flip protections to track or protect pages; **debuggers**,
+**instrumentation frameworks**, **hot-patchers**, **emulators**, and **anti-cheat
+and security products** all legitimately do the same. `PAGE_GUARD` in particular
+is how a thread stack detects that it needs to grow. So the *presence* of
+`VirtualProtect` in an import table is ordinary.
+
+What draws an analyst's eye is a *pattern* in how protections move at runtime:
+
+> A transition from read-only (or execute-only) to writable, followed shortly by
+> restoration of the original protection, is uncommon in typical business
+> applications and may warrant closer inspection during malware analysis.
+> Legitimate software such as JIT compilers, instrumentation frameworks,
+> debuggers, and security products also perform similar operations, so the
+> observation should be considered **one signal rather than evidence** of
+> malicious behaviour.
+
+That is the whole discipline in one sentence: describe the *observable* — a
+region briefly became writable and then went back — weigh it against how common
+it is in benign software, and corroborate before concluding. An analyst learns
+*what to look for*; the meaning comes from the surrounding behaviour, not from
+the single API. (This lesson stays at the level of what you can observe in a
+binary; the actual mechanics of modifying running code belong to a different
+discussion and are not the subject here.)
+
 ## Key points
 
 - A PE calls DLL functions through the **IAT**, a table of pointers the loader
@@ -180,3 +304,12 @@ list is both the map a reverser reads and the surface a hooker writes.
   pattern unlocks most of the library calls in a Windows disassembly.
 - Windows resolves imports **eagerly** by default; **delay loading** is the
   opt-in lazy path, and **binding** is the mostly-dead precomputation ASLR killed.
+- **API Sets** (`api-ms-win-*`) are virtual contract names, not files; the loader
+  rewrites them via the **ApiSetMap** to a real implementation DLL (version
+  dependent). They are why an import need not match a file on disk, and their
+  presence signals nothing on its own.
+- The import list is an analyst's first read: it hints at a program's
+  vocabulary. `VirtualProtect` changes an existing region's page protection
+  (the `PAGE_*` R/W/X combinations); legitimate software does this constantly, so
+  a protection change is **one signal to weigh, not evidence** — corroborate
+  before concluding.
