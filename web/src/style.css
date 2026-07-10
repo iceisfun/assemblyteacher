@@ -510,8 +510,11 @@ input:focus, select:focus, .mv-scroll:focus, [tabindex]:focus {
   /* Top nav wraps to a second full-width row of equal, tappable buttons
      instead of overflowing. */
   .topbar { flex-wrap: wrap; height: auto; gap: 8px 16px; padding: 8px 14px; row-gap: 8px; }
-  .nav { width: 100%; gap: 6px; }
-  .nav a { flex: 1; text-align: center; padding: 12px 8px; border-radius: 8px; }
+  /* The links wrap onto as many full-width rows as needed (flex-wrap is on the
+     nav itself, not just the topbar) so six items never force a horizontal
+     page scroll; each stays an equal, tappable button. */
+  .nav { width: 100%; gap: 6px; flex-wrap: wrap; }
+  .nav a { flex: 1 1 auto; min-width: 88px; text-align: center; padding: 12px 8px; border-radius: 8px; }
 
   /* ≥44px touch targets for everything tappable. */
   .btn, .tab, button.mv-btn { min-height: 44px; }
