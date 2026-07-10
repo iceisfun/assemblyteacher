@@ -12,12 +12,14 @@ import { renderPlayground } from "./pages/playground.ts";
 import { renderLessonIndex, renderLesson } from "./pages/lessons.ts";
 import { renderInspector } from "./pages/inspector.ts";
 import { renderRegisters } from "./pages/registers.ts";
+import { renderConvert } from "./pages/convert.ts";
 
 const NAV: Array<[string, string]> = [
   ["#/playground", "Playground"],
   ["#/lessons", "Lessons"],
   ["#/inspector", "Inspector"],
   ["#/registers", "Registers"],
+  ["#/convert", "Convert"],
 ];
 
 function mountShell(): { view: HTMLElement; nav: HTMLElement } {
@@ -73,6 +75,10 @@ function route(): void {
   }
   if (hash.startsWith("#/registers")) {
     renderRegisters(view);
+    return;
+  }
+  if (hash.startsWith("#/convert")) {
+    renderConvert(view);
     return;
   }
   renderPlayground(view);

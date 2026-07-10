@@ -584,9 +584,13 @@ pre.md-code .tok:hover, pre.md-code .tok:focus-visible {
 .help-num-value:hover { color: var(--accent); }
 .help-num-value.copied { color: var(--ok); }
 
-/* The number card keeps a stable width so toggling 8/16/32/64 never makes it
-   jitter sideways; the nibble grid grows only downward, in whole rows. */
-.help-card-num { min-width: 284px; }
+/* A fixed width so the card never jitters as its content changes — the long
+   default hint and the short per-bit readout would otherwise pull the width
+   between the min and the popover max on every hover. */
+.help-card-num { width: 300px; max-width: 100%; }
+/* Reserve the hint's two lines so hovering a bit (one line) does not change
+   the card's height either. */
+.help-num-detail { min-height: 34px; }
 
 /* The nibble grid: four bits per group, hex digit beneath. A fixed four-groups-
    per-row grid means the width never changes and the height grows in even steps
@@ -759,4 +763,53 @@ pre.md-code .tok-reg:hover { text-decoration: underline dotted rgba(90, 212, 166
 @media (max-width: 900px) {
   .reg-page-layout { grid-template-columns: 1fr; }
   .reg-page-detail { position: static; }
+}
+
+/* ===================================================================== */
+/* Byte / value converter page (#/convert)                               */
+/* ===================================================================== */
+.cv-page { max-width: 720px; margin: 0 auto; }
+.cv-header h1 { margin: 0 0 6px; }
+.cv-intro { color: var(--fg-dim); max-width: 64ch; margin: 0 0 18px; }
+.cv-intro code { font-family: var(--mono); color: var(--amber); background: var(--bg-2); padding: 1px 4px; border-radius: 3px; }
+
+.cv-controls { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+.cv-input {
+  font-family: var(--mono); font-size: 18px; width: 100%;
+  padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--line);
+  border-radius: var(--radius); color: var(--fg);
+}
+.cv-radio-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cv-radio { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg-dim); cursor: pointer; }
+.cv-radio input { accent-color: var(--accent); }
+
+.cv-label { color: var(--fg-dim); font-size: 12px; min-width: 90px; }
+.cv-copy { font-family: var(--mono); cursor: pointer; }
+.cv-copy:hover { color: var(--accent); }
+.cv-copy.copied { color: var(--ok); }
+
+.cv-out { display: flex; flex-direction: column; gap: 14px; }
+.cv-hint, .cv-error { color: var(--fg-dim); font-size: 14px; }
+.cv-error { color: var(--warn); }
+
+.cv-headline { display: flex; align-items: baseline; gap: 12px; padding: 12px 14px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius); }
+.cv-headline-label { color: var(--fg-dim); font-size: 12px; }
+.cv-headline .cv-copy { font-size: 26px; color: var(--amber); word-break: break-all; }
+
+.cv-readings { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+.cv-reading { display: contents; }
+.cv-reading .cv-value, .cv-reading .cv-copy { font-family: var(--mono); }
+
+.cv-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-faint); margin-bottom: 6px; }
+.cv-layouts { padding-top: 4px; }
+.cv-layout { display: flex; align-items: baseline; gap: 14px; padding: 4px 8px; border-radius: 6px; }
+.cv-layout.active { background: rgba(124, 196, 255, 0.10); }
+.cv-layout .cv-copy { font-family: var(--mono); color: var(--amber); }
+
+.cv-decomp { margin-top: 4px; }
+.cv-decomp .help-card-inline { max-width: 340px; }
+
+@media (max-width: 600px) {
+  .cv-label { min-width: 70px; }
+  .cv-headline .cv-copy { font-size: 20px; }
 }
