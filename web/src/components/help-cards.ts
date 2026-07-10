@@ -5,7 +5,16 @@
 
 import { assemble, explain } from "../api.ts";
 import { lookupInsn } from "../core/insninfo.ts";
-import { lookupReg, regByteRange, type RegInfo } from "../core/reginfo.ts";
+import {
+  ancestorsOf,
+  bitRangeOf,
+  childrenOf,
+  familyTree,
+  largestOf,
+  lookupReg,
+  parentOf,
+  type RegNode,
+} from "../core/reginfo.ts";
 import {
   atWidth,
   nibbles,
@@ -119,66 +128,217 @@ function defaultDetail(info: NumberInfo): string {
 }
 
 // ---- register card ---------------------------------------------------------
+//
+// An interactive explorer of the register file, not a static reference: the
+// whole family tree is shown with the selected register highlighted; hovering a
+// relative previews its bit ownership without navigating; clicking navigates the
+// card to it. Every general-purpose family behaves identically.
 
-/** A card for a register: its family ladder, the bytes it covers, its role. */
+/** Build a 64-cell bit strip. `tint(i)` classes each bit 63..0. */
+function bitStrip(tint: (i: number) => string): HTMLElement {
+  const strip = el("div", "reg-bits");
+  strip.setAttribute("aria-hidden", "true");
+  // Eight byte-groups, high byte (bits 63–56) leftmost; bit 7 leftmost in each.
+  for (let b = 7; b >= 0; b--) {
+    const group = el("span", "reg-bits-byte");
+    for (let k = 7; k >= 0; k--) {
+      const i = b * 8 + k;
+      group.appendChild(el("span", `reg-bit ${tint(i)}`));
+    }
+    strip.appendChild(group);
+  }
+  return strip;
+}
+
+function ownershipTint(lo: number, hi: number): (i: number) => string {
+  return (i) => (i >= lo && i <= hi ? "own" : "off");
+}
+
+/** The write-effect strip: which bits a write to this register changes, and
+ *  what happens to the rest (zeroed for a 32-bit write, preserved otherwise). */
+function writeTint(name: string): (i: number) => string {
+  const info = lookupReg(name)!;
+  const [lo, hi] = bitRangeOf(name);
+  return (i) => {
+    if (i >= lo && i <= hi) return "written";
+    if (info.width === 32 && i >= 32) return "zeroed";
+    return "preserved";
+  };
+}
+
+const WIDTH_LABEL: Record<number, string> = { 8: "8-bit", 16: "16-bit", 32: "32-bit", 64: "64-bit" };
+
+function writeExplanation(name: string): string {
+  const info = lookupReg(name)!;
+  const r64 = largestOf(name);
+  const [lo, hi] = bitRangeOf(name);
+  switch (info.width) {
+    case 64:
+      return `Writing ${name} replaces the entire register.`;
+    case 32:
+      return `Writing ${name} zero-extends into ${r64}: the upper 32 bits become zero. This is the only width that clears the rest of the register.`;
+    default:
+      return `Writing ${name} changes only bits ${lo}–${hi}; the other bits of ${r64} keep their old value.`;
+  }
+}
+
+function exampleInstructions(name: string): string[] {
+  const info = lookupReg(name)!;
+  const imm = info.width === 8 ? "11" : "1";
+  return [`mov ${name}, ${imm}`, `add ${name}, 1`, `cmp ${name}, 0`];
+}
+
 export function buildRegCard(name: string): HTMLElement {
   const card = el("div", "help-card help-card-reg");
-  const info = lookupReg(name);
-  if (!info) {
+  if (!lookupReg(name)) {
     card.appendChild(el("div", "help-title", name));
     return card;
   }
 
-  const title = el("div", "help-title");
-  title.appendChild(el("span", "help-mnemonic", info.name));
-  title.appendChild(el("span", "help-insn-cat", `${info.width}-bit · ${regByteRange(info)}`));
-  card.appendChild(title);
+  // `selected` is the navigated register; `active` is what the bit strip and
+  // readout currently show (selected, or a hovered relative).
+  const render = (selected: string): void => {
+    card.innerHTML = "";
+    const info = lookupReg(selected)!;
 
-  // The four-width family ladder, widest to narrowest, current name lit.
-  const ladder = el("div", "help-reg-ladder");
-  const rungs: { label: string; width: number }[] = [
-    { label: info.family[0], width: 64 },
-    { label: info.family[1], width: 32 },
-    { label: info.family[2], width: 16 },
-    { label: info.family[3], width: 8 },
-  ];
-  for (const r of rungs) {
-    const isCurrent = !info.high && r.label === info.name;
-    const rung = el("span", `help-reg-rung${isCurrent ? " current" : ""}`, r.label);
-    rung.title = `${r.width}-bit`;
-    ladder.appendChild(rung);
-  }
-  if (info.highByte) {
-    const rung = el("span", `help-reg-rung help-reg-high${info.high ? " current" : ""}`, info.highByte);
-    rung.title = "high byte — bits 8–15";
-    ladder.appendChild(rung);
-  }
-  card.appendChild(ladder);
+    // Active readout — updates on hover-preview, reverts on leave.
+    const readout = el("div", "reg-readout");
+    const bitsWrap = el("div", "reg-bits-wrap");
+    const setActive = (activeName: string) => {
+      const [lo, hi] = bitRangeOf(activeName);
+      const ai = lookupReg(activeName)!;
+      readout.innerHTML = "";
+      readout.appendChild(el("span", "help-mnemonic reg-active-name", activeName));
+      readout.appendChild(el("span", "reg-active-meta", `${WIDTH_LABEL[ai.width]} · bits ${lo}–${hi}`));
+      bitsWrap.innerHTML = "";
+      const strip = bitStrip(ownershipTint(lo, hi));
+      const scale = el("div", "reg-bits-scale");
+      scale.appendChild(el("span", undefined, "63"));
+      scale.appendChild(el("span", undefined, "0"));
+      bitsWrap.append(strip, scale);
+    };
+    card.append(readout, bitsWrap);
+    setActive(selected);
 
-  card.appendChild(el("div", "help-reg-role", info.role));
+    // The family tree, selected node highlighted, every node interactive.
+    const tree = el("div", "reg-tree");
+    const root = familyTree(selected)!;
+    const renderNode = (node: RegNode, depth: number): HTMLElement => {
+      const row = el("div", "reg-node-row");
+      row.style.paddingLeft = `${depth * 16}px`;
+      if (depth > 0) row.appendChild(el("span", "reg-node-branch", "└─"));
+      const chip = el("span", `reg-node${node.name === selected ? " selected" : ""}`, node.name);
+      chip.tabIndex = 0;
+      chip.setAttribute("role", "button");
+      chip.title = `${WIDTH_LABEL[node.width]} · bits ${node.bitLo}–${node.bitHi}`;
+      const preview = () => setActive(node.name);
+      const revert = () => setActive(selected);
+      chip.addEventListener("mouseenter", preview);
+      chip.addEventListener("focus", preview);
+      chip.addEventListener("mouseleave", revert);
+      chip.addEventListener("blur", revert);
+      chip.addEventListener("click", () => navigate(node.name));
+      chip.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(node.name);
+        }
+      });
+      row.appendChild(chip);
+      const wrap = el("div", "reg-node-wrap");
+      wrap.appendChild(row);
+      for (const child of node.children) wrap.appendChild(renderNode(child, depth + 1));
+      return wrap;
+    };
+    tree.appendChild(renderNode(root, 0));
+    card.appendChild(tree);
 
-  const notes = el("div", "help-reg-notes");
-  notes.appendChild(el("span", `help-reg-saved help-${info.saved.startsWith("callee") ? "callee" : "caller"}`, info.saved));
-  // The zero-extension rule, exactly where it applies.
-  if (info.width === 32) {
-    notes.appendChild(el("span", "help-reg-note", "a 32-bit write zero-extends into the full 64-bit register"));
-  } else if (info.width === 8 || info.width === 16) {
-    notes.appendChild(el("span", "help-reg-note", `an ${info.width}-bit write merges — the upper bits of ${info.family[0]} survive`));
-  }
-  card.appendChild(notes);
+    // Metadata.
+    const meta = el("div", "reg-meta");
+    const metaRow = (label: string, value: string) => {
+      const row = el("div", "reg-meta-row");
+      row.appendChild(el("span", "help-num-label", label));
+      row.appendChild(el("span", "reg-meta-value", value));
+      meta.appendChild(row);
+    };
+    metaRow("parent", parentOf(selected) ?? "— (largest)");
+    const kids = childrenOf(selected);
+    metaRow("children", kids.length ? kids.join(", ") : "— (smallest)");
+    const aliases = ancestorsOf(selected);
+    metaRow("aliases", aliases.length ? aliases.join(", ") : "—");
+    metaRow("role", info.role);
+    const saved = el("span", `help-reg-saved help-${info.saved.startsWith("callee") ? "callee" : "caller"}`, info.saved);
+    const savedRow = el("div", "reg-meta-row");
+    savedRow.appendChild(el("span", "help-num-label", "ABI"));
+    savedRow.appendChild(saved);
+    meta.appendChild(savedRow);
+    card.appendChild(meta);
 
-  linkToPlayground(card, info);
+    // Write behaviour, with a before/after-style effect strip.
+    const write = el("div", "reg-write");
+    write.appendChild(el("div", "reg-section-title", "when you write it"));
+    write.appendChild(el("div", "help-reg-note", writeExplanation(selected)));
+    const wstrip = el("div", "reg-bits-wrap");
+    wstrip.appendChild(bitStrip(writeTint(selected)));
+    write.appendChild(wstrip);
+    const legend = el("div", "reg-write-legend");
+    legend.appendChild(el("span", "reg-leg reg-leg-written", "written"));
+    if (info.width === 32) legend.appendChild(el("span", "reg-leg reg-leg-zeroed", "zeroed"));
+    if (info.width < 64) legend.appendChild(el("span", "reg-leg reg-leg-preserved", "preserved"));
+    write.appendChild(legend);
+    card.appendChild(write);
+
+    // Instruction examples, with machine code filled in lazily.
+    const ex = el("div", "reg-examples");
+    ex.appendChild(el("div", "reg-section-title", "examples"));
+    const examples = exampleInstructions(selected);
+    const rows = examples.map((text) => {
+      const row = el("div", "reg-example-row");
+      row.appendChild(el("span", "reg-example-text", text));
+      const bytes = el("span", "reg-example-bytes", "…");
+      row.appendChild(bytes);
+      ex.appendChild(row);
+      return bytes;
+    });
+    card.appendChild(ex);
+    fillExampleBytes(examples, rows);
+
+    linkToPlayground(card, `mov ${selected}, 1`);
+  };
+
+  let currentSelected = name.toLowerCase();
+  const navigate = (to: string): void => {
+    currentSelected = to;
+    render(to);
+    card.dispatchEvent(new CustomEvent("help-resize", { bubbles: true }));
+  };
+  render(currentSelected);
   return card;
 }
 
-function linkToPlayground(card: HTMLElement, info: RegInfo): void {
+/** Assemble the example instructions in one request and fill each row's bytes.
+ *  Degrades silently to no bytes when the API is unreachable. */
+function fillExampleBytes(examples: string[], rows: HTMLElement[]): void {
+  assemble({ source: examples.join("\n") })
+    .then((res) => {
+      res.lines.forEach((line, i) => {
+        const cell = rows[i];
+        if (cell) cell.textContent = line.hex.replace(/(..)(?=.)/g, "$1 ");
+      });
+    })
+    .catch(() => {
+      for (const cell of rows) cell.textContent = "";
+    });
+}
+
+function linkToPlayground(card: HTMLElement, prefill: string): void {
   const link = document.createElement("a");
   link.className = "help-pg-link";
   link.textContent = "try in the Playground →";
   link.href = "#/playground";
   link.addEventListener("click", () => {
     try {
-      sessionStorage.setItem("playground-prefill", `mov ${info.name}, 1`);
+      sessionStorage.setItem("playground-prefill", prefill);
     } catch {
       /* private mode */
     }

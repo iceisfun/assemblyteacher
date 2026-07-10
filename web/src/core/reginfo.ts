@@ -101,6 +101,105 @@ export function isKnownRegister(word: string): boolean {
 
 /** The byte range a name covers within the 64-bit register, for display. */
 export function regByteRange(info: RegInfo): string {
-  if (info.high) return "bits 8–15";
-  return `bits 0–${info.width - 1}`;
+  const [lo, hi] = bitRangeOf(info.name);
+  return `bits ${lo}–${hi}`;
+}
+
+// ---- register hierarchy ----------------------------------------------------
+//
+// Every family is a tree rooted at the 64-bit register:
+//
+//   R?X ─ E?X ─ ?X ─┬─ ?H   (only for A/B/C/D)
+//                   └─ ?L
+//
+// Families without a high byte (SI/DI/BP/SP and R8–R15) drop the ?H branch.
+
+/** The [low, high] bit range a register name owns within its 64-bit register. */
+export function bitRangeOf(name: string): [number, number] {
+  const info = BY_NAME.get(name.toLowerCase());
+  if (!info) return [0, 63];
+  if (info.high) return [8, 15];
+  return [0, info.width - 1];
+}
+
+/** The immediate parent (next-wider alias), or null for the 64-bit register. */
+export function parentOf(name: string): string | null {
+  const info = BY_NAME.get(name.toLowerCase());
+  if (!info) return null;
+  const fam = FAMILIES[info.num]!;
+  if (info.high) return fam[2]; // ah -> ax
+  switch (info.width) {
+    case 64:
+      return null;
+    case 32:
+      return fam[0]; // eax -> rax
+    case 16:
+      return fam[1]; // ax -> eax
+    default:
+      return fam[2]; // al -> ax
+  }
+}
+
+/** Every wider alias, from the immediate parent up to the 64-bit register. */
+export function ancestorsOf(name: string): string[] {
+  const out: string[] = [];
+  let cur = parentOf(name);
+  while (cur) {
+    out.push(cur);
+    cur = parentOf(cur);
+  }
+  return out;
+}
+
+/** The 64-bit register at the root of this name's family. */
+export function largestOf(name: string): string {
+  const info = BY_NAME.get(name.toLowerCase());
+  return info ? FAMILIES[info.num]![0] : name;
+}
+
+export interface RegNode {
+  name: string;
+  width: RegWidth;
+  bitLo: number;
+  bitHi: number;
+  children: RegNode[];
+}
+
+/** The full family tree for whichever family `name` belongs to (rooted at r64). */
+export function familyTree(name: string): RegNode | null {
+  const info = BY_NAME.get(name.toLowerCase());
+  if (!info) return null;
+  const [q, d, w, b] = FAMILIES[info.num]!;
+  const node = (n: string, width: RegWidth, lo: number, hi: number, children: RegNode[]): RegNode => ({
+    name: n,
+    width,
+    bitLo: lo,
+    bitHi: hi,
+    children,
+  });
+
+  const byte8: RegNode[] =
+    info.num < 4
+      ? // A/B/C/D: high byte then low byte, matching the SOW's downward order.
+        [node(HIGH_BYTES[info.num]!, 8, 8, 15, []), node(b, 8, 0, 7, [])]
+      : [node(b, 8, 0, 7, [])];
+
+  return node(q, 64, 0, 63, [node(d, 32, 0, 31, [node(w, 16, 0, 15, byte8)])]);
+}
+
+/** Immediate child registers (one level down), for the metadata panel. */
+export function childrenOf(name: string): string[] {
+  const info = BY_NAME.get(name.toLowerCase());
+  if (!info || info.high) return [];
+  const [q, d, w, b] = FAMILIES[info.num]!;
+  switch (info.width) {
+    case 64:
+      return [d];
+    case 32:
+      return [w];
+    case 16:
+      return info.num < 4 ? [HIGH_BYTES[info.num]!, b] : [b];
+    default:
+      return [];
+  }
 }

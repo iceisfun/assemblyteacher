@@ -46,9 +46,9 @@ function inline(text: string): string {
 // A `:::number 0x2a` / `:::instruction lea rax, [rbx]` block directive → an
 // always-open inline helper card (the teaching form of the hover chip).
 function blockDirective(line: string): string | null {
-  const m = /^:::(number|instruction)\s+(.+)$/.exec(line.trim());
+  const m = /^:::(number|instruction|register)\s+(.+)$/.exec(line.trim());
   if (!m) return null;
-  return embedPlaceholder(m[1] as "number" | "instruction", m[2]!);
+  return embedPlaceholder(m[1] as "number" | "instruction" | "register", m[2]!);
 }
 
 // A GFM table separator row: pipes and dashes only, with optional `:` for

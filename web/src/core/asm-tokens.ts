@@ -92,8 +92,9 @@ export function forcedInsnChip(word: string): string {
     : escapeAttr(cleaned);
 }
 
-/** An always-open inline embed placeholder for the `:::number`/`:::instruction`
- * block directives; hydrated by info-popover after render. */
-export function embedPlaceholder(kind: "number" | "instruction", arg: string): string {
+/** An always-open inline embed placeholder for the `:::number` /
+ * `:::instruction` / `:::register` block directives; hydrated by info-popover
+ * after render. */
+export function embedPlaceholder(kind: "number" | "instruction" | "register", arg: string): string {
   return `<div class="help-embed" data-embed="${kind}" data-arg="${escapeAttr(arg.trim())}"></div>`;
 }

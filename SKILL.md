@@ -168,7 +168,15 @@ Two explicit forms give you finer control:
   ```text
   :::number 0x2a
   :::instruction lea rax, [rbx+rcx*4]
+  :::register al
   ```
+
+  The register card is a full interactive family explorer: it shows the whole
+  hierarchy (RAX ⊃ EAX ⊃ AX ⊃ AH/AL), hovering any relative previews the bits it
+  owns on a 64-bit strip, clicking navigates to it, and it explains the write
+  semantics (merge vs zero-extend) with example machine code. Embedding it with
+  `:::register` in the Registers lesson lets a reader learn the register file by
+  exploration.
 
 The intended progression is **scaffolding that fades**: in an early lesson, embed
 the full card with `:::number` so the decomposition is unavoidable; in later

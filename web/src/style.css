@@ -666,18 +666,61 @@ pre.md-code .tok:hover, pre.md-code .tok:focus-visible {
 .tok-reg:hover, .tok-reg:focus-visible { background: rgba(90, 212, 166, 0.14); }
 pre.md-code .tok-reg:hover { text-decoration: underline dotted rgba(90, 212, 166, 0.7); }
 
-/* Register card: the four-width family ladder, role, and preservation note. */
+/* Interactive register card. Stable width so navigating between registers never
+   jitters; the popover scrolls if the card is taller than the viewport. */
+.help-card-reg { min-width: 300px; }
 .help-card-reg .help-mnemonic { color: var(--ok); }
-.help-reg-ladder { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.help-reg-rung {
-  font-family: var(--mono); font-size: 12px; padding: 2px 8px;
-  background: var(--bg-1); border: 1px solid var(--line); border-radius: 5px; color: var(--fg-dim);
+.help-popover { max-height: min(80vh, 640px); overflow-y: auto; }
+
+/* Active readout — the register the bit strip currently reflects. */
+.reg-readout { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.reg-active-name { font-size: 15px; }
+.reg-active-meta { font-size: 12px; color: var(--fg-dim); font-family: var(--mono); }
+
+/* The 64-bit ownership strip. */
+.reg-bits-wrap { margin-bottom: 10px; }
+.reg-bits { display: flex; gap: 3px; }
+.reg-bits-byte { display: flex; gap: 1px; }
+.reg-bit { width: 4px; height: 15px; border-radius: 1px; background: var(--bg-3); }
+.reg-bit.own { background: var(--ok); }
+.reg-bit.off { background: var(--bg-3); }
+.reg-bit.written { background: var(--accent); }
+.reg-bit.zeroed { background: var(--bad); opacity: 0.6; }
+.reg-bit.preserved { background: var(--bg-3); }
+.reg-bits-scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--fg-faint); margin-top: 2px; }
+
+/* Family tree: every node interactive; the selected node is lit. */
+.reg-tree { margin: 4px 0 10px; }
+.reg-node-row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.reg-node-branch { color: var(--fg-faint); font-family: var(--mono); font-size: 12px; }
+.reg-node {
+  font-family: var(--mono); font-size: 13px; padding: 1px 8px; border-radius: 5px;
+  border: 1px solid transparent; cursor: pointer; color: var(--fg-dim);
 }
-.help-reg-rung.current { background: rgba(90, 212, 166, 0.18); color: var(--fg); border-color: var(--ok); }
-.help-reg-high { border-style: dashed; }
-.help-reg-role { line-height: 1.45; margin-bottom: 8px; }
-.help-reg-notes { display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
-.help-reg-saved { font-size: 11px; font-family: var(--mono); align-self: flex-start; padding: 1px 7px; border-radius: 10px; }
+.reg-node:hover, .reg-node:focus-visible { background: var(--bg-3); color: var(--fg); outline: none; border-color: var(--line); }
+.reg-node.selected { background: rgba(90, 212, 166, 0.18); color: var(--fg); border-color: var(--ok); }
+
+/* Metadata + sections. */
+.reg-meta { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin-bottom: 10px; }
+.reg-meta-row { display: contents; }
+.reg-meta-value { font-family: var(--mono); font-size: 12px; }
+.reg-meta-row .help-reg-saved { justify-self: start; }
+.reg-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-faint); margin-bottom: 5px; }
+.reg-write { margin-bottom: 10px; }
+.reg-write-legend { display: flex; gap: 12px; margin-top: 5px; font-size: 11px; }
+.reg-leg { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-dim); }
+.reg-leg::before { content: ""; width: 9px; height: 9px; border-radius: 2px; }
+.reg-leg-written::before { background: var(--accent); }
+.reg-leg-zeroed::before { background: var(--bad); opacity: 0.6; }
+.reg-leg-preserved::before { background: var(--bg-3); }
+
+.reg-examples { margin-bottom: 6px; }
+.reg-example-row { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); font-size: 12px; padding: 1px 0; }
+.reg-example-text { color: var(--fg); }
+.reg-example-bytes { color: var(--amber); }
+
+/* Preservation note pill, still used by the write section. */
+.help-reg-saved { font-size: 11px; font-family: var(--mono); padding: 1px 7px; border-radius: 10px; }
 .help-reg-saved.help-callee { background: rgba(90, 212, 166, 0.16); color: var(--ok); }
 .help-reg-saved.help-caller { background: rgba(242, 201, 76, 0.16); color: var(--warn); }
-.help-reg-note { font-size: 12px; color: var(--fg-dim); }
+.help-reg-note { font-size: 12px; color: var(--fg-dim); line-height: 1.45; }

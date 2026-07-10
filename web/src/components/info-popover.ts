@@ -15,6 +15,12 @@
 
 import { buildInsnCard, buildNumberCard, buildRegCard } from "./help-cards.ts";
 
+function embedCard(kind: string | undefined, arg: string): HTMLElement {
+  if (kind === "instruction") return buildInsnCard(arg.split(/\s+/)[0] ?? "", arg);
+  if (kind === "register") return buildRegCard(arg.split(/\s+/)[0] ?? "");
+  return buildNumberCard(arg);
+}
+
 let popover: HTMLElement | null = null;
 let pinned = false;
 let hideTimer: number | undefined;
@@ -173,11 +179,7 @@ function hydrateEmbeds(root: ParentNode): void {
   for (const host of root.querySelectorAll<HTMLElement>(".help-embed")) {
     if (host.dataset.hydrated) continue;
     host.dataset.hydrated = "1";
-    const arg = host.dataset.arg ?? "";
-    const card =
-      host.dataset.embed === "instruction"
-        ? buildInsnCard(arg.split(/\s+/)[0] ?? "", arg)
-        : buildNumberCard(arg);
+    const card = embedCard(host.dataset.embed, host.dataset.arg ?? "");
     card.classList.add("help-card-inline");
     host.appendChild(card);
   }

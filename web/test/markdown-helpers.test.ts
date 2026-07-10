@@ -24,3 +24,8 @@ test("a fenced code block is tokenized too", () => {
   assert.match(html, /data-insn="mov"/);
   assert.match(html, /data-insn="ret"/);
 });
+
+test("the block :::register directive emits a register embed", () => {
+  const html = renderMarkdown(":::register al");
+  assert.match(html, /help-embed[^>]*data-embed="register"[^>]*data-arg="al"/);
+});
