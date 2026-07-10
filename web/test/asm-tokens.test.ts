@@ -69,6 +69,31 @@ test("prose links registers and hex literals, but not mnemonic-like English word
   assert.ok(!/data-lit="0"/.test(html), "bare decimals stay plain in prose");
 });
 
+test("a byte written as spaced nibbles is one binary chip, not per-nibble decimals", () => {
+  // The two's-complement lesson draws bytes as `1111 1011`. Each nibble alone
+  // would tokenize as a bogus decimal (1111, 1011); merged, the card reads the
+  // whole pattern as 0b11111011 = 0xfb = -5, which is the lesson's point.
+  const html = tokenizeCodeToHtml("  + 1111 1011    251");
+  assert.match(html, /data-lit="0b11111011">1111 1011</);
+  assert.ok(!/data-lit="1111"/.test(html), "no stray decimal nibble");
+  assert.ok(!/data-lit="1011"/.test(html), "no stray decimal nibble");
+  // The decimal annotation beside it (set off by several spaces) stays decimal.
+  assert.match(html, /data-lit="251"/);
+});
+
+test("the carry-out column (a 9-bit group) still merges", () => {
+  const html = tokenizeCodeToHtml("   10000 0000    256");
+  assert.match(html, /data-lit="0b100000000">10000 0000</);
+});
+
+test("a lone nibble is left alone; only a multi-group run merges", () => {
+  // A single group is not a hand-drawn byte, so it keeps existing behaviour
+  // (decimal) rather than being guessed as binary.
+  const html = tokenizeCodeToHtml("value 1000 here");
+  assert.match(html, /data-lit="1000"/);
+  assert.ok(!/data-lit="0b/.test(html), "no binary merge for a lone group");
+});
+
 test("an assembly line is NOT mistaken for a hex dump", () => {
   const html = tokenizeCodeToHtml("mov eax, 1");
   assert.match(html, /data-insn="mov"/);

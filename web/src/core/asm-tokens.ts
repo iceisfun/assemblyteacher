@@ -40,6 +40,23 @@ function hexByteChip(byte: string): string {
   return `<span class="tok tok-num" role="button" tabindex="0" data-help="num" data-lit="0x${byte}">${byte}</span>`;
 }
 
+/** A binary value hand-written as space-separated nibbles, e.g. `1111 1011`.
+ *  Displays the grouping intact but the card reads the WHOLE pattern
+ *  (0b11111011 → 0xfb, 251, −5). Without this each nibble tokenises as a bogus
+ *  decimal (`1111` as one thousand one hundred eleven) — nonsense in a binary
+ *  explanation, which is exactly where these diagrams appear. */
+function binGroupChip(display: string): string {
+  const bits = display.replace(/\s+/g, "");
+  return `<span class="tok tok-num" role="button" tabindex="0" data-help="num" data-lit="0b${bits}">${display}</span>`;
+}
+
+// Two or more binary nibble/byte groups joined by a SINGLE space — a byte drawn
+// as `1111 1011`. The single space is the tell: within a value the nibbles are
+// spaced by one, while the decimal annotation beside it (`1111 1011    251`) is
+// set off by several, so the run stops before it. Groups run 4–9 bits to allow
+// the carry-out column (`10000 0000`) without matching stray `0`/`1` digits.
+const BIN_RUN_RE = /^[01]{4,9}(?: [01]{4,9})+/;
+
 /**
  * Is this line a hex dump — whitespace-separated two-hex-digit bytes, at least
  * two of them? Then every group is a byte, and bare pairs like `b8` or `2a` are
@@ -74,9 +91,25 @@ function tokenizeHexDump(line: string): string {
 function tokenizeAsm(line: string, context?: string): string {
   let out = "";
   let last = 0;
-  for (const m of line.matchAll(TOKEN_RE)) {
+  TOKEN_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = TOKEN_RE.exec(line))) {
     const [full, charLit, numLit, word] = m;
     const at = m.index;
+
+    // A binary value written as spaced nibbles (`1111 1011`) starts on a plain
+    // digit run, so TOKEN_RE stops at the first nibble. Grab the whole run and
+    // emit one chip that reads the full byte, rather than a chip per nibble.
+    if (numLit && /^[01]{4,9}$/.test(numLit)) {
+      const run = BIN_RUN_RE.exec(line.slice(at));
+      if (run) {
+        out += line.slice(last, at) + binGroupChip(run[0]);
+        last = at + run[0].length;
+        TOKEN_RE.lastIndex = last;
+        continue;
+      }
+    }
+
     out += line.slice(last, at);
     last = at + full.length;
 
