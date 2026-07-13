@@ -17,12 +17,12 @@ kind = "quiz"
 prompt = "A function's very last action is `return other(x);` — it returns another function's result and does nothing after. Why can the compiler turn that `call other` into a plain `jmp other`?"
 choices = [
   "Because jmp is faster than call",
-  "Because the current function has no work left to do after the call, so it does not need its own frame kept around; `other` can reuse it and return directly to the original caller",
+  "Because there is no work left after the call, so the compiler tears this function's own frame back down and jumps *without pushing a return address* — `other` then returns directly to the original caller",
   "Because other is a leaf function",
   "Because jmp preserves the flags and call does not",
 ]
 answer = 1
-explanation = "In *tail position* — the call is the last thing the function does, and its result is returned unchanged — the current frame is dead weight. There is nothing to come back to. So instead of `call other` (which would push a return address into this function, only for `other` to `ret` here and then immediately `ret` again to the real caller), the compiler emits `jmp other`. `other` runs on the existing frame and its final `ret` goes straight back to whoever called the original function. This is **tail-call optimization**, and it makes deep or mutual recursion run in constant stack space."
+explanation = "In *tail position* — the call is the last thing the function does, and its result is returned unchanged — the current frame is dead weight. There is nothing to come back to. So instead of `call other` (which would push a return address into this function, only for `other` to `ret` here and this function to immediately `ret` again to the real caller), the compiler runs this function's epilogue to tear its frame back down and then emits `jmp other`. The jump pushes no return address, so `other` begins with the original caller's return address already on top of the stack and its final `ret` goes straight back there. This is **tail-call optimization**, and because it never stacks a new frame on top of the old one, deep or mutual tail recursion runs in constant stack space."
 
 [[exercises]]
 id = "q-vanished-caller"
@@ -30,12 +30,12 @@ kind = "quiz"
 prompt = "`A` tail-calls `B` (via `jmp B`). Inside `B`, what return address is on top of the stack?"
 choices = [
   "A return address back into A",
-  "The return address of A's *own* caller — because the jmp pushed nothing, B inherits the stack A was entered with, so A has vanished from the return chain",
+  "The return address of A's *own* caller — A tore its frame back down and the jmp pushed nothing, so the stack top is still the return address `call A` left; A has vanished from the return chain",
   "Zero, until B pushes one",
   "B's own address",
 ]
 answer = 1
-explanation = "`call A` pushed a return address into A's caller and jumped to A. A then did `jmp B` — a jump pushes nothing — so B is running on exactly the stack A received, whose top is still the return address into A's caller. B's `ret` therefore returns straight past A to A's caller. A is gone from the return chain: it left no frame and no return address. B's immediate 'caller' on the stack looks like A's caller."
+explanation = "`call A` pushed a return address into A's caller and jumped to A. A ran its epilogue to tear its own frame back down (if it had one) and then did `jmp B` — a jump pushes nothing — so the top of the stack is still the return address into A's caller, and that is where B begins. B's `ret` therefore returns straight past A to A's caller. A is gone from the return chain: it left no frame and no return address. B's immediate 'caller' on the stack looks like A's caller."
 
 [[exercises]]
 id = "q-disasm-signature"
@@ -72,7 +72,7 @@ starter = """
 done:
     hlt
 outer:
-    jmp inner          ; tail call: reuse outer's frame, push nothing
+    jmp inner          ; tail call: outer built no frame; jmp pushes no return address
 inner:
     ; show that [rsp] is the return address into `done`, not into outer
     ret
@@ -82,7 +82,7 @@ solution = """
 done:
     hlt
 outer:
-    jmp inner
+    jmp inner          ; outer added no frame; jmp pushes no return address
 inner:
     mov rax, [rsp]
     lea rcx, [rip+done]
@@ -96,8 +96,8 @@ bad:
 """
 expect_registers = { rax = 1 }
 hints = [
-  "`outer` did `jmp inner`, which pushes nothing, so `inner` runs on the stack `outer` was entered with — its top is still the return address `call outer` pushed.",
-  "That address is `done`. Compare `[rsp]` with `lea rcx, [rip+done]`; equal means outer's frame vanished and inner returns straight to outer's caller.",
+  "`outer` built no frame to tear down, and `jmp inner` pushes nothing, so `inner` begins with the return address `call outer` pushed still on top of the stack.",
+  "That address is `done`. Compare `[rsp]` with `lea rcx, [rip+done]`; equal means outer is gone from the return chain and `inner` returns straight to outer's caller.",
 ]
 +++
 
@@ -121,28 +121,36 @@ int wrapper(int x) {
 }
 ```
 
-After `worker` returns, `wrapper` does nothing but hand that value back. Its frame
-— its slot on the stack, its saved registers — is dead the instant `worker` is
-called. So why create a return address that points back into `wrapper`, only for
-`worker` to `ret` there and have `wrapper` immediately `ret` again?
+After `worker` returns, `wrapper` has nothing left to do but hand that value back.
+Its frame — its slot on the stack, its saved registers — is finished the moment
+`worker` is reached. So why push a return address into `wrapper`, only for
+`worker` to `ret` there and `wrapper` to immediately `ret` again to the real
+caller?
 
 The compiler doesn't. In **tail position** — the call is the last thing the
-function does, and its result is returned unchanged — it emits a **jump**, not a
-call:
+function does, and its result is returned unchanged — it runs `wrapper`'s ordinary
+epilogue **first**, tearing `wrapper`'s own frame back down, and then **jumps**
+instead of calling:
 
 ```asm
 wrapper:
-    ...                     ; setup(x)
-    ...                     ; arguments for worker into edi etc.
-    jmp worker              ; TAIL CALL: reuse this frame, don't push a return
+    sub  rsp, 0x18          ; prologue: wrapper's frame (if it needs one)
+    ...                     ; setup(x); stage worker's argument in edi
+    add  rsp, 0x18          ; epilogue FIRST — wrapper's frame is gone
+    jmp  worker             ; then jump: push no return address
 ```
 
-`worker` runs on `wrapper`'s frame, and its `ret` returns straight to whoever
-called `wrapper`. This is **tail-call optimization (TCO)**. Its headline benefit
-is that a tail-recursive function — or a chain of mutually tail-calling ones —
-runs in **constant stack space**, turning what looks like deep recursion into
-something closer to a loop. Functional languages depend on it; C compilers do it
-whenever they can at higher optimization levels.
+Because the `jmp` pushes nothing, `worker` begins with the return address that
+`call wrapper` left on the stack already on top — the address of **wrapper's
+caller**. `worker`'s eventual `ret` goes straight there; `wrapper` is no longer on
+the stack in any form. This is **tail-call optimization (TCO)**. Because each tail
+call dismantles the current frame before jumping — never stacking a new frame on
+top of the old one — a tail-recursive function, or a chain of mutually
+tail-calling ones, runs in **constant stack space**, turning what looks like deep
+recursion into something closer to a loop. Functional languages depend on it; C
+compilers do it at higher optimization levels when a call sits in tail position.
+(A function that built no frame at all — a leaf, or a frameless `-O2` routine —
+has nothing to tear down; it simply jumps.)
 
 ## The vanishing frame
 
@@ -150,18 +158,19 @@ Now follow the stack, because this is the part that matters. `A` is called
 normally, then tail-calls `B`:
 
 ```text
-   call A            jmp B  (inside A)         B running
-   ─────────         ────────────────          ─────────
-   push ret→A's      (pushes nothing)          rsp → ret→A's caller
-   caller; jmp A     rsp unchanged                   (A left no frame,
-   rsp → ret→A's                                      no return address)
+   call A            inside A, tail position   B running
+   ─────────         ───────────────────────   ─────────
+   push ret→A's      A tears its own frame      rsp → ret→A's caller
+   caller; jmp A     back down, then jmp B            (A left no frame and
+   rsp → ret→A's     (jmp pushes nothing)             no return address)
         caller
 ```
 
-`call A` pushed a return address into **A's caller**. A's `jmp B` pushes nothing,
-so `B` is running on exactly the stack A was handed — whose top is still the
-return address into A's caller. `B`'s eventual `ret` sails straight past A and
-back to A's caller.
+`call A` pushed a return address into **A's caller**. A does its work, runs its
+epilogue to tear its own frame back down (if it had one), and then `jmp B`, which
+pushes nothing. So the top of the stack is still the return address into A's
+caller — and that is where `B` begins. `B`'s eventual `ret` sails straight past A
+and back to A's caller.
 
 **A has vanished.** It left no frame and no return address. From `B`'s point of
 view, its caller — the thing whose address sits at `[rsp]` — is *A's caller*, not
@@ -206,8 +215,10 @@ the address that happens to be on the stack.
 ## Key points
 
 - A call in **tail position** (the last act, result returned unchanged) becomes a
-  **jmp**: the current frame is dead, so the callee reuses it and returns to the
-  original caller. This is what makes tail recursion run in constant stack space.
+  **jmp**: the compiler tears the current function's frame back down (if it built
+  one) and jumps *without pushing a return address*, so the callee returns
+  directly to the original caller. Because no frame is stacked on top of the old
+  one, tail recursion runs in constant stack space.
 - After a tail call the intermediate function **vanishes** — no frame, no return
   address — so the tail-called function sees its *caller's caller* at `[rsp]`.
 - In a disassembly a tail call is a **`jmp` to another function's entry** (not a
