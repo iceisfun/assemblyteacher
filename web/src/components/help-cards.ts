@@ -189,6 +189,15 @@ function exampleInstructions(name: string): string[] {
   return [`mov ${name}, ${imm}`, `add ${name}, 1`, `cmp ${name}, 0`];
 }
 
+// Examples for a special register, which cannot appear as an ordinary operand.
+// For rip the honest illustration is RIP-relative addressing.
+function specialExamples(name: string): string[] {
+  if (name === "rip") {
+    return ["lea rax, [rip+0x10]", "mov rax, qword [rip+0x2fe2]"];
+  }
+  return [];
+}
+
 export interface RegCardOptions {
   /** When provided, clicking a register calls this instead of navigating the
    *  card in place — used by the full-page reference to drive the URL. */
@@ -207,12 +216,42 @@ export function buildRegCard(name: string, opts: RegCardOptions = {}): HTMLEleme
     readout.appendChild(el("span", "help-mnemonic reg-active-name", special.name));
     readout.appendChild(el("span", "reg-active-meta", `${WIDTH_LABEL[special.width]} · special register`));
     card.appendChild(readout);
+
     const meta = el("div", "reg-meta");
     const row = el("div", "reg-meta-row");
     row.appendChild(el("span", "help-num-label", "role"));
     row.appendChild(el("span", "reg-meta-value", special.role));
     meta.appendChild(row);
     card.appendChild(meta);
+
+    // Examples: rip is not an ordinary operand, so show the way it is actually
+    // used — RIP-relative addressing — rather than `mov rip, 1`.
+    const examples = specialExamples(special.name);
+    if (examples.length) {
+      const ex = el("div", "reg-examples");
+      ex.appendChild(el("div", "reg-section-title", "examples"));
+      const rows = examples.map((text) => {
+        const exRow = el("div", "reg-example-row");
+        exRow.appendChild(el("span", "reg-example-text", text));
+        const bytes = el("span", "reg-example-bytes", "…");
+        exRow.appendChild(bytes);
+        ex.appendChild(exRow);
+        return bytes;
+      });
+      card.appendChild(ex);
+      fillExampleBytes(examples, rows);
+
+      const links = el("div", "help-links");
+      linkToPlayground(links, examples[0]!);
+      if (!opts.onNavigate) {
+        const ref = document.createElement("a");
+        ref.className = "help-pg-link";
+        ref.textContent = "full register reference →";
+        ref.href = `#/registers/${special.name}`;
+        links.appendChild(ref);
+      }
+      card.appendChild(links);
+    }
     return card;
   }
 

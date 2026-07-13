@@ -159,6 +159,15 @@ its role, and whether it is callee- or caller-saved. You write nothing special:
 `` `mov al, 0x2a` `` already makes `mov`, `al` and `0x2a` all interactive. All
 existing lessons got this for free.
 
+**Registers and number literals also light up in the running prose**, not only
+inside backticks — so a sentence that mentions `rip`, `rax` or `0x28` is
+interactive without you marking it up. This is safe because only register names
+and `0x`/`0b` literals are linkified in prose; **mnemonics are not** (English is
+full of words like "and", "or", "call" and "add" that are also instructions), so
+to make a mnemonic interactive in prose you still backtick it or use `:insn[…]`.
+Headings and code blocks are left alone. `rip` is a recognised register (a
+special, single-width one — no four-width family), so it lights up like the rest.
+
 The mnemonic card links to the **full instruction reference** (`#/instructions`)
 — a searchable, cross-linked page with the operand forms, colour-coded flag
 effects, a visual explanation, worked examples that open in the Playground, and

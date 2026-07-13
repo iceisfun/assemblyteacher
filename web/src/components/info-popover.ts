@@ -14,6 +14,7 @@
 // `:::instruction` block directives.
 
 import { buildInsnCard, buildNumberCard, buildRegCard } from "./help-cards.ts";
+import { tokenizeProse } from "../core/asm-tokens.ts";
 
 function embedCard(kind: string | undefined, arg: string): HTMLElement {
   if (kind === "instruction") return buildInsnCard(arg.split(/\s+/)[0] ?? "", arg);
@@ -179,6 +180,47 @@ function installGlobal(): void {
   // where a pinned card has no hover-out to dismiss it.
   window.addEventListener("hashchange", hide);
   window.addEventListener("popstate", hide);
+}
+
+/**
+ * Linkify register names and hex/binary literals in the *prose* of `root` — the
+ * running text outside code, links, headings and existing chips — so a lesson
+ * that mentions `rip` or `0x28` in a sentence lights it up the same as it would
+ * inside backticks. Only registers and number literals are touched (never
+ * mnemonics), so ordinary English is never chipped. Call once per render.
+ */
+export function linkifyProse(root: Element): void {
+  const doc = root.ownerDocument;
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const targets: Text[] = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const text = n.nodeValue;
+    if (!text || !text.trim()) continue;
+    let skip = false;
+    for (let p = n.parentElement; p; p = p.parentElement) {
+      const tag = p.tagName;
+      if (
+        tag === "CODE" ||
+        tag === "PRE" ||
+        tag === "A" ||
+        /^H[1-6]$/.test(tag) ||
+        p.classList.contains("tok") ||
+        p.classList.contains("help-embed")
+      ) {
+        skip = true;
+        break;
+      }
+      if (p === root) break;
+    }
+    if (!skip) targets.push(n as Text);
+  }
+  for (const node of targets) {
+    const html = tokenizeProse(node.nodeValue ?? "");
+    if (!html.includes('class="tok')) continue;
+    const holder = doc.createElement("span");
+    holder.innerHTML = html;
+    node.replaceWith(...Array.from(holder.childNodes));
+  }
 }
 
 function hydrateEmbeds(root: ParentNode): void {

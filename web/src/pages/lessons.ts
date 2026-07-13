@@ -13,7 +13,7 @@ import {
 } from "../api.ts";
 import { renderMarkdown } from "../core/markdown.ts";
 import { CodeEditor } from "../components/code-editor.ts";
-import { installTokenHelpers } from "../components/info-popover.ts";
+import { installTokenHelpers, linkifyProse } from "../components/info-popover.ts";
 
 export async function renderLessonIndex(root: HTMLElement): Promise<void> {
   root.innerHTML = `<div class="lessons"><h1>Curriculum</h1><div class="lessons-body">loading…</div></div>`;
@@ -87,8 +87,13 @@ export async function renderLesson(root: HTMLElement, id: string): Promise<void>
   article.className = "prose";
   article.innerHTML = renderMarkdown(lesson.body);
   body.appendChild(article);
-  // Light up the numbers and mnemonics in the prose with hover/tap helper cards,
-  // and hydrate any :::number / :::instruction inline embeds.
+  // Register names and hex/binary literals in the running prose light up too, not
+  // only inside backticks — so a sentence mentioning `rip` or `0x28` is
+  // interactive. Mnemonics stay backtick-only, since English is full of words
+  // that are also instruction names.
+  linkifyProse(article);
+  // Wire hover/tap helper cards for every chip, and hydrate any
+  // :::number / :::instruction inline embeds.
   installTokenHelpers(article);
 
   if (lesson.exercises.length) {
