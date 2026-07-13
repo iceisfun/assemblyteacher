@@ -13,6 +13,7 @@ import {
   largestOf,
   lookupReg,
   specialReg,
+  specialRegNames,
   type RegNode,
 } from "../core/reginfo.ts";
 
@@ -72,6 +73,30 @@ function familyBlock(r64: string, selected: string, onPath: Set<string>): HTMLEl
   return block;
 }
 
+/** A special (non-general-purpose) register — a single linkable chip, no family. */
+function specialBlock(name: string, selected: string): HTMLElement {
+  const sp = specialReg(name)!;
+  const block = el("div", `reg-fam${name === selected ? " active" : ""}`);
+  const tree = el("div", "reg-fam-tree");
+  const row = el("div", "reg-node-row");
+  const chip = el("span", `reg-node reg-fam-node${name === selected ? " selected" : ""}`, name);
+  chip.tabIndex = 0;
+  chip.setAttribute("role", "button");
+  chip.title = `${sp.width}-bit · special register`;
+  chip.addEventListener("click", () => goTo(name));
+  chip.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      goTo(name);
+    }
+  });
+  row.appendChild(chip);
+  tree.appendChild(row);
+  block.appendChild(tree);
+  block.appendChild(el("div", "reg-fam-role", sp.role));
+  return block;
+}
+
 export function renderRegisters(view: HTMLElement, selectedRaw?: string): void {
   const selected =
     selectedRaw && (lookupReg(selectedRaw) || specialReg(selectedRaw))
@@ -86,9 +111,9 @@ export function renderRegisters(view: HTMLElement, selectedRaw?: string): void {
     el(
       "p",
       "reg-page-intro",
-      "Sixteen general-purpose registers, each addressable at four widths. Pick any " +
-        "name to see the bits it owns, how it aliases the others, and what a write to it " +
-        "does. Every register here is linkable.",
+      "Sixteen general-purpose registers, each addressable at four widths, plus the " +
+        "instruction pointer rip. Pick any name to see the bits it owns, how it aliases " +
+        "the others, and what a write to it does. Every register here is linkable.",
     ),
   );
   page.appendChild(header);
@@ -103,6 +128,9 @@ export function renderRegisters(view: HTMLElement, selectedRaw?: string): void {
   const onPath = new Set<string>([selected, ...ancestorsOf(selected)]);
   for (const r64 of FAMILIES_R64) {
     grid.appendChild(familyBlock(r64, selected, onPath));
+  }
+  for (const name of specialRegNames()) {
+    grid.appendChild(specialBlock(name, selected));
   }
   layout.appendChild(grid);
 

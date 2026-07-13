@@ -101,6 +101,11 @@ export function specialReg(name: string): SpecialReg | null {
   return SPECIAL_REGS[name.toLowerCase()] ?? null;
 }
 
+/** The names of the special (non-general-purpose) registers, for listing. */
+export function specialRegNames(): string[] {
+  return Object.keys(SPECIAL_REGS);
+}
+
 /** Look up a general-purpose register by any of its names. */
 export function lookupReg(name: string): RegInfo | null {
   const entry = BY_NAME.get(name.toLowerCase());

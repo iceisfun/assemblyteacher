@@ -127,9 +127,9 @@ into `rip`. So immediately after a `call`, the stack looks like this:
 ```text
         higher addresses
         ┌────────────────────┐
-        │  caller's frame     │
+        │  caller's frame    │
         ├────────────────────┤
-  rsp → │  return RIP         │  ← the address of the instruction after `call`
+  rsp → │  return RIP        │  ← the address of the instruction after `call`
         └────────────────────┘
         lower addresses
 ```
