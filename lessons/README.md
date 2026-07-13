@@ -80,6 +80,7 @@ broken one.
 | | Stack Canaries and Security Cookies | compiler stack guards, Linux canaries, Windows `/GS`, and failure triage |
 | | Return-Oriented Programming (ROP) | gadgets, clobbering, unaligned gadgets, and which mitigation breaks which step |
 | | Caller Validation and Trusted Control Flow | reading the return RIP, whitelists, and why it is a signal not a boundary |
+| | Tail Calls and the Vanishing Frame | how TCO turns call into jmp, erases a frame, and defeats caller validation |
 | XV. Advanced Topics | Capstone: Inspect, Trace, Patch | tie inspection, tracing, ASLR, patching and mitigations into one workflow |
 
 The proposed full curriculum — fifteen parts through advanced reverse

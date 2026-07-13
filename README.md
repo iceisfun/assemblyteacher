@@ -137,7 +137,7 @@ docker run --rm -v "$PWD":/work asmteacher-dev contrib/test.sh
 
 The foundation is complete and the curriculum grows on top of it. Implemented so
 far: the full core-crate stack with differential validation, the REST API, the
-frontend shell with all its visualisations, the lesson framework, and thirty-eight
+frontend shell with all its visualisations, the lesson framework, and thirty-nine
 lessons spanning Parts I–XV — through computer fundamentals, stack and heap,
 processes, virtual memory and ASLR, ELF, PE, dynamic linking, reverse engineering,
 debugging internals, memory structures, compiler behavior, OS interaction,

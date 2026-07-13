@@ -151,8 +151,10 @@ internal:
 Where it lives shifts as the function sets up. A standard `push rbp` prologue
 pushes 8 bytes, so the return address moves to `[rsp+8]`; once `rbp` is
 established it is at `[rbp+8]`. A **leaf** function that builds no frame keeps it
-at `[rsp]`. Reading it is trivial; the subtlety is entirely in what you *do* with
-the value.
+at `[rsp]`. (Such a leaf may still use the System V *red zone* — the 128 bytes
+*below* `rsp` — for scratch without moving `rsp`, but that space is below the
+return address, so `[rsp]` is unaffected.) Reading it is trivial; the subtlety is
+entirely in what you *do* with the value.
 
 The value you just read *is* a `rip` — an address in the code — even though you
 never name `rip` as an operand:
