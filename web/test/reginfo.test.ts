@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lookupReg, isKnownRegister, regByteRange } from "../src/core/reginfo.ts";
+import { lookupReg, isKnownRegister, regByteRange, specialReg, searchRegs } from "../src/core/reginfo.ts";
 
 test("every width of a register resolves to the same family and role", () => {
   for (const n of ["rax", "eax", "ax", "al"]) {
@@ -38,6 +38,17 @@ test("unknown words are not registers", () => {
   assert.ok(!isKnownRegister("printf"));
   assert.ok(!isKnownRegister("mov"));
   assert.ok(isKnownRegister("r15b"));
+});
+
+test("rip is a known special register that lights up and is searchable", () => {
+  // rip is not a general-purpose register, so lookupReg does not know it...
+  assert.equal(lookupReg("rip"), null);
+  // ...but it is a recognised special register, so tokens highlight it.
+  assert.ok(isKnownRegister("rip"));
+  assert.ok(isKnownRegister("RIP"));
+  assert.equal(specialReg("rip")?.width, 64);
+  assert.match(specialReg("rip")!.role, /instruction pointer/);
+  assert.equal(searchRegs("rip")[0], "rip");
 });
 
 import {

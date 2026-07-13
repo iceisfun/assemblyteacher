@@ -12,6 +12,7 @@ import {
   familyTree,
   largestOf,
   lookupReg,
+  specialReg,
   type RegNode,
 } from "../core/reginfo.ts";
 
@@ -72,7 +73,10 @@ function familyBlock(r64: string, selected: string, onPath: Set<string>): HTMLEl
 }
 
 export function renderRegisters(view: HTMLElement, selectedRaw?: string): void {
-  const selected = selectedRaw && lookupReg(selectedRaw) ? selectedRaw.toLowerCase() : "rax";
+  const selected =
+    selectedRaw && (lookupReg(selectedRaw) || specialReg(selectedRaw))
+      ? selectedRaw.toLowerCase()
+      : "rax";
   view.innerHTML = "";
 
   const page = el("div", "reg-page");

@@ -6,7 +6,7 @@
 //
 // Pure except for `searchLessonHits`, which is a single fetch.
 
-import { lookupReg, searchRegs } from "./reginfo.ts";
+import { lookupReg, searchRegs, specialReg } from "./reginfo.ts";
 import { lookupInsnEntry, searchInsns } from "./insninfo.ts";
 import { search as searchLessons } from "../api.ts";
 
@@ -45,11 +45,12 @@ function unionByWord(query: string, fn: (q: string) => string[]): string[] {
 /** Registers and instructions, resolved synchronously from the bundled catalogs. */
 export function searchEntities(query: string): { registers: Hit[]; instructions: Hit[] } {
   const registers: Hit[] = unionByWord(query, searchRegs).map((name) => {
-    const info = lookupReg(name)!;
+    const gp = lookupReg(name);
+    const info = gp ?? specialReg(name)!;
     return {
       kind: "register",
       label: name.toUpperCase(),
-      sub: `${info.width}-bit · ${info.role.split(";")[0]!.trim()}`,
+      sub: `${info.width}-bit · ${info.role.split(/[;—]/)[0]!.trim()}`,
       href: `#/registers/${name}`,
     };
   });

@@ -24,6 +24,14 @@ test("searchRegs does not let a single letter match half the file", () => {
   assert.ok(!hits.includes("rax"), "substring match suppressed for 1-char query");
 });
 
+test("searchEntities returns a register hit for the special register rip", () => {
+  const r = searchEntities("rip");
+  const hit = r.registers.find((h) => h.label === "RIP");
+  assert.ok(hit, "rip should appear as a register hit");
+  assert.equal(hit!.href, "#/registers/rip");
+  assert.ok(hit!.sub.includes("64-bit"));
+});
+
 test("searchEntities surfaces an entity token inside a multi-word query", () => {
   // "eax foo bar" matches no register as a phrase, but the "eax" token does.
   const r = searchEntities("eax foo bar");

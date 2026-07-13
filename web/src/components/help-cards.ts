@@ -13,6 +13,7 @@ import {
   largestOf,
   lookupReg,
   parentOf,
+  specialReg,
   type RegNode,
 } from "../core/reginfo.ts";
 import {
@@ -196,6 +197,25 @@ export interface RegCardOptions {
 
 export function buildRegCard(name: string, opts: RegCardOptions = {}): HTMLElement {
   const card = el("div", "help-card help-card-reg");
+
+  // Registers outside the general-purpose file (rip) have no four-width family,
+  // ABI class or write-zeroing story, so the full card would be misleading. Give
+  // them a compact card: name, width, and what they are.
+  const special = specialReg(name);
+  if (special) {
+    const readout = el("div", "reg-readout");
+    readout.appendChild(el("span", "help-mnemonic reg-active-name", special.name));
+    readout.appendChild(el("span", "reg-active-meta", `${WIDTH_LABEL[special.width]} · special register`));
+    card.appendChild(readout);
+    const meta = el("div", "reg-meta");
+    const row = el("div", "reg-meta-row");
+    row.appendChild(el("span", "help-num-label", "role"));
+    row.appendChild(el("span", "reg-meta-value", special.role));
+    meta.appendChild(row);
+    card.appendChild(meta);
+    return card;
+  }
+
   if (!lookupReg(name)) {
     card.appendChild(el("div", "help-title", name));
     return card;

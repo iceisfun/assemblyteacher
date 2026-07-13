@@ -79,6 +79,28 @@ for (let num = 0; num < 16; num++) {
 }
 HIGH_BYTES.forEach((name, i) => BY_NAME.set(name, { num: i, width: 8, high: true }));
 
+// Registers outside the 16-strong general-purpose file: no four-width family, no
+// ABI save class, not usable as an ordinary operand. They get a simpler card,
+// but they should still light up and be searchable. `rip` is the one this course
+// leans on constantly (RIP-relative addressing, call/ret).
+export interface SpecialReg {
+  name: string;
+  width: RegWidth;
+  role: string;
+}
+const SPECIAL_REGS: Record<string, SpecialReg> = {
+  rip: {
+    name: "rip",
+    width: 64,
+    role: "the instruction pointer — the address of the next instruction to execute. You cannot name it as an ordinary operand; call/ret/jmp change it, and RIP-relative addressing (`[rip+disp]`) reads it.",
+  },
+};
+
+/** A non-general-purpose register (e.g. rip), or null. */
+export function specialReg(name: string): SpecialReg | null {
+  return SPECIAL_REGS[name.toLowerCase()] ?? null;
+}
+
 /** Look up a general-purpose register by any of its names. */
 export function lookupReg(name: string): RegInfo | null {
   const entry = BY_NAME.get(name.toLowerCase());
@@ -96,11 +118,12 @@ export function lookupReg(name: string): RegInfo | null {
 }
 
 export function isKnownRegister(word: string): boolean {
-  return BY_NAME.has(word.toLowerCase());
+  const w = word.toLowerCase();
+  return BY_NAME.has(w) || w in SPECIAL_REGS;
 }
 
 // Every register name, for scanning. Order does not matter — search ranks.
-const ALL_REG_NAMES: string[] = [...FAMILIES.flat(), ...HIGH_BYTES];
+const ALL_REG_NAMES: string[] = [...FAMILIES.flat(), ...HIGH_BYTES, ...Object.keys(SPECIAL_REGS)];
 
 // Role words a reader might type that should surface a register. Value is the
 // canonical 64-bit name; the family's other widths still match by their names.
