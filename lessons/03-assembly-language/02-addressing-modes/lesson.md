@@ -2,9 +2,12 @@
 id = "addressing-modes"
 title = "Addressing Modes"
 order = 2
-estimated_minutes = 35
+estimated_minutes = 45
 objectives = [
   "Read any x86_64 memory operand as base + index*scale + displacement",
+  "Name the fields of an x86_64 instruction in order, and say which are optional",
+  "Split a ModRM byte into mod/reg/r/m and say what each field selects",
+  "Predict from a ModRM byte whether a SIB byte or a displacement follows",
   "Explain why the scale factor is limited to 1, 2, 4 and 8",
   "Use `lea` for arithmetic, and say why it never touches memory",
   "Explain why `rsp` cannot be an index register, from the encoding",
@@ -23,6 +26,43 @@ choices = [
 ]
 answer = 1
 explanation = "Two bits give four choices, and 1/2/4/8 are exactly the widths of a byte, short, int and pointer — so `arr[i]` needs no separate multiply."
+
+[[exercises]]
+id = "q-modrm-fields"
+kind = "quiz"
+prompt = "The ModRM byte `44` is `01|000|100`. What does it say?"
+choices = [
+  "Register-to-register, rax to rsp",
+  "Memory with an 8-bit displacement, destination rax, and a SIB byte follows",
+  "Memory with a 32-bit displacement, destination rsp, no SIB byte",
+  "RIP-relative addressing with a 32-bit displacement",
+]
+answer = 1
+explanation = "`mod = 01` means a memory operand with a one-byte displacement. `reg = 000` is rax. `r/m = 100` is the escape that means a SIB byte follows — it does not mean rsp, though rsp is register 4 and that is not a coincidence. Read in that order, the byte tells you the shape of the whole instruction before you have seen the rest of it."
+
+[[exercises]]
+id = "q-modrm-digit"
+kind = "quiz"
+prompt = "`83 /0` is `add` and `83 /7` is `cmp`, on the same opcode byte. Where does the digit live?"
+choices = [
+  "In the low three bits of the opcode byte itself",
+  "In the `reg` field of the ModRM byte, which here selects an operation instead of a register",
+  "In a prefix byte before the opcode",
+  "In the REX byte",
+]
+answer = 1
+explanation = "Opcode `83` is shared by a family of arithmetic operations, so the `reg` field is repurposed as an opcode extension. That frees `mod` and `r/m` to describe the single operand. Any time the reference writes `/digit`, it is telling you the value of `reg`."
+
+[[exercises]]
+id = "d-load-rbp"
+kind = "disassemble"
+prompt = "`48 8b 45 00` — the displacement byte is zero. Why is it there at all, and what is the instruction?"
+hex = "488b4500"
+expect_text = "mov rax, qword [rbp]"
+hints = [
+  "ModRM `45` is `01|000|101`: mod=01 means a one-byte displacement follows.",
+  "The shorter mod=00 form with r/m=101 was taken for RIP-relative addressing, so `[rbp]` has to pay for a zero.",
+]
 
 [[exercises]]
 id = "q-lea"
@@ -115,6 +155,124 @@ Two bits. Four values. `1 << scale_bits` gives 1, 2, 4, 8. The instruction set
 did not choose those sizes to be convenient — it chose two bits, and the sizes
 followed.
 
+## Anatomy of an instruction
+
+You have now met a byte *inside* an instruction, so it is worth saying plainly
+what an instruction is made of. Every x86-64 instruction is a run of optional
+fields in a fixed order:
+
+```text
+    [prefixes] [REX] opcode [ModRM] [SIB] [displacement] [immediate]
+```
+
+Only the opcode is mandatory. Everything else appears or does not, which is why
+instructions are 1 to 15 bytes long and why you cannot find the start of one by
+counting. The *order* never varies; the *presence* of each field is decided by
+the opcode and by ModRM.
+
+Two orderings live in that line and they are not the same. The fields are laid
+out left to right in the order the decoder meets them. But a multi-byte
+displacement or immediate is a little-endian integer *within* its own field —
+`08 00 00 00` is the number 8. Instruction stream: forward. Numbers inside it:
+backward.
+
+## The ModRM byte
+
+```text
+     7   6   5   4   3   2   1   0
+   +---+---+---+---+---+---+---+---+
+   |  mod  |    reg    |    r/m    |
+   +---+---+---+---+---+---+---+---+
+       2 bits    3 bits     3 bits
+```
+
+The same 2/3/3 split as the SIB byte, for the same reason: three bits hold a
+register number, and REX supplies a fourth bit when you need the upper eight.
+
+`mod` decides how `r/m` is to be read:
+
+| mod  | what `r/m` means                              |
+|------|-----------------------------------------------|
+| `00` | memory, no displacement bytes                 |
+| `01` | memory, followed by a signed 8-bit  displacement  |
+| `10` | memory, followed by a signed 32-bit displacement |
+| `11` | not memory at all — `r/m` is a register        |
+
+That is the whole register-versus-memory distinction, in two bits. `mov rax,
+rbx` and `mov rax, qword [rbx]` differ by `mod`, and nothing else.
+
+`reg` is normally the second operand: the register on the other side of the
+`mov`. But some opcodes are shared by a whole family of operations, and there
+`reg` carries no register — it selects *which* operation. Opcode `83` is
+"arithmetic on r/m with a sign-extended imm8", and the choice of arithmetic
+lives in `reg`:
+
+```text
+    83 /0   add        83 /4   and
+    83 /1   or         83 /5   sub
+    83 /7   cmp
+```
+
+That `/digit` notation, which the instruction reference uses throughout, *is*
+the value of the `reg` field. When you see `ff /2` for an indirect call later
+on, it means the same thing: opcode `ff`, `reg` = 2.
+
+`r/m` is the remaining operand, and it has two escape hatches — the two you met
+above, now with names:
+
+- **`r/m` = `100`, in any memory form** (`mod` ≠ `11`): a SIB byte follows.
+  This is why naming `rsp` as a base costs an extra byte.
+- **`mod` = `00`, `r/m` = `101`**: not `[rbp]`, but RIP-relative — a disp32
+  follows. This is why `[rbp]` must borrow the `mod=01` form with a zero.
+
+REX, when present, widens all three fields at once: **REX.R** extends `reg`,
+**REX.B** extends `r/m` (or the SIB base), and **REX.X** extends the SIB index.
+One bit each, which is exactly how sixteen registers fit through three-bit
+holes.
+
+## Reading five bytes
+
+Take the bytes from the last exercise in this lesson and do it by hand:
+
+```text
+    48 8b 44 24 08
+
+    48              REX.W  -- 64-bit operand size
+    8b              mov r64, r/m64  -- load into a register
+
+    44 = 01|000|100
+         │   │   └── r/m = 100 -> a SIB byte follows
+         │   └────── reg = 000 -> rax, the destination
+         └────────── mod = 01  -> memory, with a disp8
+
+    24 = 00|100|100
+         │   │   └── base  = 100 -> rsp
+         │   └────── index = 100 -> none
+         └────────── scale = 00  -> 1
+
+    08              the disp8
+```
+
+Assemble that: base `rsp`, no index, displacement 8 — `mov rax, qword
+[rsp+0x8]`. Five bytes, and every one of them accounted for.
+
+Now the three loads from the same address family, which differ only in the
+register named:
+
+```text
+    mov rax, qword [rax]   48 8b 00      00 = 00|000|000   plain memory, done
+    mov rax, qword [rsp]   48 8b 04 24   04 = 00|000|100   r/m=100 -> SIB
+    mov rax, qword [rbp]   48 8b 45 00   45 = 01|000|101   mod=01, a zero disp8
+```
+
+Three registers, three lengths, one operation. `rax` needs nothing extra.
+`rsp` trips the SIB escape. `rbp` cannot use `mod=00` because RIP-relative
+took it, so it pays for a displacement byte that holds zero.
+
+Type any of these into the playground and open the **Explain** tab: it draws
+the same bit ruler over the real ModRM and SIB bytes, field by field. Read a
+few instructions there until the split stops needing arithmetic.
+
 ## `lea`: address arithmetic without memory
 
 ```asm
@@ -166,26 +324,12 @@ that ran out of room.
 similar in a hex dump. The decoder in this project enforces exactly this, in
 `crates/asm-core/src/decode.rs`.
 
-The mirror-image quirk: `rm = 100` in the *ModRM* byte means "a SIB byte
-follows". So naming `rsp` as a **base** forces a SIB byte to exist, even when
-there is no index at all:
-
-```text
-    mov rax, qword [rax]    ->  48 8b 00           three bytes
-    mov rax, qword [rsp]    ->  48 8b 04 24        four bytes -- a SIB byte appears
-```
-
-And one more: `[rbp]` with no displacement would encode as `mod=00, rm=101`,
-but that pattern was taken for RIP-relative addressing. So `[rbp]` must be
-encoded as `[rbp+0]` with an explicit zero displacement byte:
-
-```text
-    mov rax, qword [rax]    ->  48 8b 00           three bytes
-    mov rax, qword [rbp]    ->  48 8b 45 00        four bytes -- a wasted zero
-```
-
-Three registers, three different instruction lengths, for the same operation.
-Assemble all three in the playground and read the bytes.
+Note that this is the mirror image of the ModRM escape you already know. In
+ModRM, `r/m = 100` was spent on "a SIB byte follows"; in SIB, `index = 100` was
+spent on "no index". The same register number, register 4, sacrificed twice —
+once in each byte — and `rsp` is register 4. Both of its costs trace back to a
+single fact: three-bit fields have no spare encodings, so any new meaning has
+to be carved out of a register that already exists.
 
 ## RIP-relative addressing
 
@@ -211,6 +355,13 @@ dependent code got more expensive. That trade was deliberate.
 
 - One formula: `[base + index*scale + disp]`. Everything else is a special case
   of it with parts left out.
+- An instruction is `[prefixes] [REX] opcode [ModRM] [SIB] [disp] [imm]`. Only
+  the opcode is required, which is why instructions vary from 1 to 15 bytes.
+- ModRM splits `mod|reg|r/m` as 2|3|3. `mod` says register-or-memory and how
+  wide the displacement is; `reg` is an operand *or* an opcode extension
+  (`/digit`); `r/m` is the other operand.
+- Two escapes carve special meanings out of register 4 and register 5:
+  `r/m=100` means a SIB follows, and `mod=00, r/m=101` means RIP-relative.
 - Scale is 1/2/4/8 because it is two bits wide, which happily matches primitive
   type sizes — so array indexing is free.
 - `lea` computes an address and never touches memory: a three-operand add that
