@@ -48,7 +48,7 @@ choices = [
   "The number of arguments passed to the call",
 ]
 answer = 1
-explanation = "`E8` is `call rel32`: the opcode is followed by a 4-byte signed displacement measured from the end of the call to the target. That distance depends on where both the call and its target landed, so any layout change (a recompile, an inserted instruction upstream, a different base) rewrites those four bytes — while `E8` never moves. That is why a run of `?? ?? ?? ??` after a branch opcode 'means something': it is the local branch target within the module. The same is true of a RIP-relative load like `48 8B 05 ?? ?? ?? ??`."
+explanation = "`E8` is `call rel32`: the opcode is followed by a 4-byte signed displacement measured from the end of the call to the target. That distance depends on where the call and its target sit *relative to each other*, so any change to the layout within the image (a recompile, an inserted instruction between them) rewrites those four bytes — while `E8` never moves. Note that loading the module at a different base does *not* change it: both ends move together, which is exactly why the signature still matches under ASLR. That is why a run of `?? ?? ?? ??` after a branch opcode 'means something': it is the local branch target within the module. The same is true of a RIP-relative load like `48 8B 05 ?? ?? ?? ??`."
 
 [[exercises]]
 id = "q-short-vs-near"
@@ -128,6 +128,17 @@ because addresses and layout-dependent constants move.
 So the rule is simple: **wildcard the volatile operand bytes; pin the opcode
 bytes.**
 
+One honest caveat about lumping ModRM in with the opcode. Its `mod` field —
+register form, memory form, displacement width — is as stable as the opcode,
+because it follows from what the source code says. Its `reg` and `r/m` fields
+name *registers*, and registers are chosen by the register allocator. Recompile
+with a different compiler version, or change code the allocator has to work
+around, and the same `mov` can come back with different registers and therefore
+a different ModRM byte. In practice pinning ModRM is right far more often than
+not, and this lesson does it. But if a signature that looks correct fails on a
+new build while the surrounding bytes still match, the ModRM byte is the first
+place to look — and relaxing just that one byte to `??` is usually the fix.
+
 The archetypal volatile site is a **relative branch**. Consider a near call:
 
 ```text
@@ -137,17 +148,31 @@ The archetypal volatile site is a **relative branch**. Consider a near call:
 `E8` is the opcode for "call, target given as a 32-bit relative displacement."
 The four bytes after it are that displacement — a *signed distance from this
 call to the function it calls*, measured from the end of the instruction. Move
-the call, move the target, insert an instruction anywhere upstream, or load the
-module at a different base, and that distance changes: the four bytes are
-rewritten every build. `E8` is not. That is precisely why `?? ?? ?? ??` after a
-branch opcode "means something" — it is the branch's local target inside the
-module, the thing that legitimately varies.
+the call, move the target, or insert an instruction anywhere between them, and
+that distance changes: the four bytes are rewritten. `E8` is not. That is
+precisely why `?? ?? ?? ??` after a branch opcode "means something" — it is the
+branch's local target inside the module, the thing that legitimately varies.
 
-RIP-relative data loads are the same story. `48 8B 05 ?? ?? ?? ??` is `mov rax,
-[rip+disp32]`: the `48 8B 05` (REX.W, the `mov` load form, ModRM selecting
-RIP-relative) is fixed, and the 32-bit displacement to the global is the part
-that slides. The exercise below is exactly this instruction. Absolute immediates
-that depend on load layout get wildcarded for the same reason.
+Be precise about *what* varies, though, because it is not the load address.
+A rel32 to a target in the same image is a distance between two things that
+move together, so rebasing the module — ASLR included — leaves it byte-for-byte
+identical. That is the whole reason a signature works at all: you scan live
+memory at an address nobody knew in advance, and the bytes still match. What
+rewrites a rel32 is a **rebuild**: a compiler version bump, an edit upstream, a
+different inlining decision, anything that changes the layout *within* the
+image. Wildcard it because builds differ, not because addresses do.
+
+RIP-relative data loads are the same story on both counts. `48 8B 05 ?? ?? ??
+??` is `mov rax, [rip+disp32]`: the `48 8B 05` (REX.W, the `mov` load form,
+ModRM selecting RIP-relative) is fixed, and the 32-bit displacement to the
+global is what shifts when code or data is laid out differently — again across
+builds, not across load addresses. The exercise below is exactly this
+instruction.
+
+The genuinely load-dependent case is an **absolute** address: a 64-bit
+immediate or an absolute pointer stored in memory. Those really are patched by
+the loader and really do change with ASLR, and they get wildcarded for that
+reason rather than this one.
 
 ## Short versus near: the length is not fixed
 
@@ -223,7 +248,12 @@ by knowing which part of each instruction is opcode and which is operand.
   bytes stay on the **stable opcodes**.
 - **Relative branches** (`E8`/`E9`, `74`/`0F 84`, …) are the archetypal wildcard
   site: the rel32/rel8 displacement is a distance from the instruction, so it
-  changes whenever code moves.
+  changes whenever the layout *inside* the image changes. Rebasing the module
+  does not change it — a distance between two things that move together is
+  base-invariant, which is why signatures survive ASLR at all.
+- ModRM is not quite as stable as the opcode it rides with: `mod` follows from
+  the source, but `reg` and `r/m` name registers the allocator picked, and a
+  rebuild can change them.
 - Branches have **short (rel8)** and **near (rel32)** forms; the shortest
   reaching form is chosen, so a jump — and any signature spanning it — can change
   length between builds.
